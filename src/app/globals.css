@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/*
+  つむぐと同じ紙色・墨色。端末のダークモードには追随しない
+  （地図の点の色でサービスの種類を見分けるため、色を固定しておく）。
+*/
+:root {
+  --paper: #f6f7f4;
+  --ink: #15211e;
+  --muted: #5a6560;
+  --rule: #dde0d8;
+  --accent: #1d5d66;
+  --accent-soft: #e1eef0;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+}
+
+html {
+  background-color: #ffffff;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI",
+    system-ui, sans-serif;
+  font-feature-settings: "palt" 1;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+@media (hover: none) {
+  button:not(:disabled):active,
+  a:active {
+    opacity: 0.72;
+    transition: opacity 60ms ease-out;
+  }
+}
+
+/* 検索欄：ブラウザ標準の「×」を消す（自前の消去ボタンを出すため） */
+input[type="search"].has-custom-clear::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* 横スクロールの絞り込みボタン列でスクロールバーを出さない */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- 地図（Leaflet）の上に出す自前の目印 ---- */
+.leaflet-container {
+  font-family: inherit;
+  background: #e9ece6;
+}
+.self-pin {
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none;
+}
+.self-pin .pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translate(-14px, -14px);
+}
+.self-pin svg {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.self-pin span {
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.leaflet-control-attribution {
+  font-size: 10px;
+}
