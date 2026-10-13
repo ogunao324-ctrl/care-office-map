@@ -10,8 +10,8 @@ const isDev = process.env.NODE_ENV !== "production";
  * ―― でないと本番でだけ黙って読み込みがブロックされる。
  *
  * 今使っている外部ホスト:
- * - 地図タイル: cyberjapandata.gsi.go.jp（国土地理院の淡色地図・標準地図）
- *   src/components/OfficeMap.tsx が <img> で直接読む
+ * - 地図タイル: server.arcgisonline.com（白地図）・cyberjapandata.gsi.go.jp（淡色地図）
+ *   src/components/OfficeMap.tsx が <img> で直接読む（つむぐと同じ2つ）
  * - 事業所データは public/data/offices.json（同じオリジン）なので追記不要
  * - Googleマップ・電話は「リンクで開く」だけなので CSP の対象外
  */
@@ -19,7 +19,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://cyberjapandata.gsi.go.jp",
+  "img-src 'self' data: blob: https://server.arcgisonline.com https://cyberjapandata.gsi.go.jp",
   "font-src 'self' data:",
   `connect-src 'self'${isDev ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
   "frame-ancestors 'self'",

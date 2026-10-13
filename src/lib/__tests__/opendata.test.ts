@@ -93,3 +93,16 @@ test("サービス名の分類（似た名前を取り違えない）", () => {
   assert.equal(categoryOf("重度訪問介護"), "dv");
   assert.equal(categoryOf("障害児相談支援"), "cs");
 });
+
+test("住所の列に建物名が入っていれば、方書を二重に付けない", () => {
+  const csv = [
+    "事業所名,住所,方書（ビル名等）,緯度,経度",
+    "A,千葉県千葉市花見川区浪花町908-44メゾンセレーザ202,メゾンセレーザ２０２,35.6573,140.0661",
+    "B,千葉県千葉市花見川区浪花町958-1,コーポ1F,35.6580,140.0670",
+  ].join("\n");
+  const rows = parseOpenData(csv, "jigyosho_130_x.csv", opt).rows;
+  assert.equal(rows[0].address, "千葉県千葉市花見川区浪花町908-44メゾンセレーザ202");
+  assert.equal(rows[1].address, "千葉県千葉市花見川区浪花町958-1 コーポ1F");
+  assert.equal(rows[0].service, "訪問看護");
+  assert.equal(findSelf(rows, "メゾンセレーザ")?.name, "A");
+});

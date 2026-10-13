@@ -106,3 +106,39 @@ input[type="search"].has-custom-clear::-webkit-search-cancel-button {
 .leaflet-control-attribution {
   font-size: 10px;
 }
+
+/*
+  白地図に重ねる駅・区の名前。つむぐ（DistributionMap.tsx の renderLandmarks）と同じ、
+  背景に溶け込む控えめな見た目にしている。押せない（ただの目印）。
+*/
+.landmark-station,
+.landmark-area {
+  pointer-events: none;
+  user-select: none;
+}
+.landmark-station span {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.landmark-area span {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  white-space: nowrap;
+  text-shadow:
+    1px 1px 2px #fff,
+    -1px -1px 2px #fff,
+    1px -1px 2px #fff,
+    -1px 1px 2px #fff;
+}

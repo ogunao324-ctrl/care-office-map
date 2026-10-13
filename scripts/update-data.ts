@@ -22,6 +22,7 @@ import {
   HOME_WARD,
   MAX_KM,
   SELF_ADDRESS_KEY,
+  SELF_BUILDING_KEY,
 } from "../src/config";
 import { categoryOf, distanceKm, type DataSource, type OfficeData } from "../src/lib/offices";
 import { decodeText, findSelf, mergeOffices, parseOpenData, type OpenDataRow } from "../src/lib/opendata";
@@ -193,9 +194,17 @@ async function rebuild(): Promise<OfficeData> {
   const all = files.flatMap((f) => f.rows);
 
   const self = findSelf(all, SELF_ADDRESS_KEY);
+  const sameBuilding = self ? null : findSelf(all, SELF_BUILDING_KEY);
   const center = self
     ? { lat: self.lat as number, lng: self.lng as number, label: `${self.name}（公表データの位置）`, source: "data" as const }
-    : { ...FALLBACK_CENTER, label: "千葉市花見川区浪花町（町の代表点）", source: "fallback" as const };
+    : sameBuilding
+      ? {
+          lat: sameBuilding.lat as number,
+          lng: sameBuilding.lng as number,
+          label: `${SELF_BUILDING_KEY}（同じ建物の${sameBuilding.name}の位置）`,
+          source: "data" as const,
+        }
+      : { ...FALLBACK_CENTER, label: "千葉市花見川区浪花町（町の代表点）", source: "fallback" as const };
 
   const inRange = (r: OpenDataRow) =>
     r.lat != null && r.lng != null ? distanceKm(center, { lat: r.lat, lng: r.lng }) <= MAX_KM : r.address.includes(HOME_WARD);

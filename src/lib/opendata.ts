@@ -221,10 +221,10 @@ export function parseOpenData(text: string, fileName: string, opt: ParseOptions)
     const hasLoc =
       Number.isFinite(lat) && Number.isFinite(lng) && lat > 20 && lat < 50 && lng > 120 && lng < 155;
 
-    let address =
-      col.addrCity >= 0
-        ? cell(r, col.addrCity) + cell(r, col.addrRest)
-        : cell(r, col.addr) + (cell(r, col.building) ? ` ${cell(r, col.building)}` : "");
+    let address = col.addrCity >= 0 ? cell(r, col.addrCity) + cell(r, col.addrRest) : cell(r, col.addr);
+    // 方書（建物名）は住所の列にすでに入っていることがある。二重に付けない
+    const building = col.addrCity >= 0 ? "" : cell(r, col.building);
+    if (building && !normAddr(address).includes(normAddr(building))) address += ` ${building}`;
     const city = cell(r, col.city);
     const pref = cell(r, col.pref);
     if (city && !address.includes(city)) address = city + address;
