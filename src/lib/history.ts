@@ -78,6 +78,16 @@ export function countSeries(
   return snaps.map((ym, i) => ({ ym, count: sets[i].size }));
 }
 
+/** 期間の始まりの時点（最新から months か月以上前の、いちばん新しい時点）の位置 */
+export function periodStartIndex(snaps: string[], months: number): number {
+  const L = snaps.length - 1;
+  if (L <= 0) return 0;
+  const limit = ymIndex(snaps[L]) - months;
+  let S = 0;
+  for (let i = 0; i < L; i++) if (ymIndex(snaps[i]) <= limit) S = i;
+  return Math.min(S, L - 1);
+}
+
 export type ChangeKind = "open" | "added" | "closed" | "dropped";
 
 export const CHANGE_LABEL: Record<ChangeKind, string> = {
@@ -114,10 +124,7 @@ export function periodChanges(h: HistoryData, center: LatLng, radiusKm: number, 
     const snaps = h.snapshots[src];
     if (snaps.length < 2) continue;
     const L = snaps.length - 1;
-    const limit = ymIndex(snaps[L]) - months;
-    let S = 0;
-    for (let i = 0; i < L; i++) if (ymIndex(snaps[i]) <= limit) S = i;
-    if (S >= L) S = L - 1;
+    const S = periodStartIndex(snaps, months);
 
     const byNo = new Map<string, HistoryOffice[]>();
     for (const o of h.offices) {

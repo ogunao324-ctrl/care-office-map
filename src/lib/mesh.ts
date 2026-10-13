@@ -46,3 +46,21 @@ export function meshCenter(code: string): { lat: number; lng: number } {
   const b = meshBounds(code);
   return { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 };
 }
+
+/** 緯度経度が入っている 500m メッシュ（9桁）の番号 */
+export function meshCodeAt(lat: number, lng: number): string {
+  const p = Math.floor(lat * 1.5);
+  const u = Math.floor(lng - 100);
+  let south = p / 1.5;
+  let west = u + 100;
+  const q = Math.floor((lat - south) / (5 / 60));
+  const v = Math.floor((lng - west) / (7.5 / 60));
+  south += (q * 5) / 60;
+  west += (v * 7.5) / 60;
+  const r = Math.floor((lat - south) / (30 / 3600));
+  const w = Math.floor((lng - west) / (45 / 3600));
+  south += (r * 30) / 3600;
+  west += (w * 45) / 3600;
+  const m = (lat - south >= 15 / 3600 ? 2 : 0) + (lng - west >= 22.5 / 3600 ? 1 : 0) + 1;
+  return `${String(p).padStart(2, "0")}${String(u).padStart(2, "0")}${q}${v}${r}${w}${m}`;
+}

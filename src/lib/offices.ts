@@ -7,10 +7,14 @@ export type LatLng = { lat: number; lng: number };
 /** サービスの大きな分類。地図の点の色と、絞り込みのボタンに使う */
 export type CategoryId = "cm" | "hh" | "vn" | "dv" | "cs" | "ot";
 
+/**
+ * 色は地図の点と絞り込みのボタンで共通。色覚の違い（P型・D型）でも隣どうしが見分けられることを
+ * 検査して決めている（2026-10-13、訪問看護の黄土色は訪問介護の橙と見分けにくかったので水色に変更）。
+ */
 export const CATEGORIES: { id: CategoryId; name: string; color: string; group: "介護" | "障害" | "" }[] = [
   { id: "cm", name: "居宅介護支援", color: "#2f56c6", group: "介護" },
   { id: "hh", name: "訪問介護", color: "#d4531a", group: "介護" },
-  { id: "vn", name: "訪問看護", color: "#a87400", group: "介護" },
+  { id: "vn", name: "訪問看護", color: "#0891b2", group: "介護" },
   { id: "dv", name: "障害 訪問系", color: "#2c8a43", group: "障害" },
   { id: "cs", name: "相談支援", color: "#9c3bb5", group: "障害" },
   { id: "ot", name: "その他", color: "#7a837f", group: "" },

@@ -1,33 +1,43 @@
 "use client";
 
 /**
- * 画面全体：検索・絞り込み → 地図 → 自社から近い順の一覧
+ * 画面全体
  *
- * スマホ：上に検索と絞り込み、その下に地図、残りが一覧。
- * PC（幅1024px〜）：左に一覧、右に地図。
+ * 3つの見方を上のタブで切り替える。地図は共通で、見方ごとに描くものが変わる。
+ *  - 事業所をさがす：検索・絞り込み → 地図 → 自社から近い順の一覧
+ *  - 需要と競合　　：500m 四方のマスを「事業所の足りなさ」か「人数」で色分けし、足りない町を並べる
+ *  - 競合の動き　　：期間内に新しく載った／載らなくなった事業所と、数の推移
  *
- * データは public/data/offices.json（scripts/update-data.ts が作る）を読むだけ。
- * 距離は画面側で「自社」から測り直す。
+ * スマホ：上に操作、その下に地図、残りが一覧などの中身。PC（幅1024px〜）：左に中身、右に地図。
+ *
+ * データ（どれも GitHub Actions が作って public/data/ に置く）
+ *  - offices.json … 今の事業所（scripts/update-data.ts）
+ *  - areas.json   … 国勢調査の人口（scripts/update-population.ts）。「需要と競合」を開いたときに読む
+ *  - history.json … 過去の公表データ（scripts/update-history.ts）。お知らせに使うので最初に裏で読む
  */
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DEFAULT_RADIUS, RADII } from "@/config";
+import { ALERT_CATEGORIES, ALERT_RADIUS_KM, DEFAULT_RADIUS, GAP_RADIUS_KM, MAX_KM, RADII } from "@/config";
 import {
-  CATEGORIES,
-  categoryColor,
-  categoryOf,
-  categoryRecord,
-  digitsOnly,
-  kaigoPageUrl,
-  WAM_SEARCH_URL,
-  distanceKm,
-  formatDistance,
-  type CategoryId,
-  type OfficeData,
-} from "@/lib/offices";
+  computeGap,
+  COUNT_COLORS,
+  countBreaks,
+  DEMAND_LABEL,
+  shortageRanking,
+  shortageStep,
+  type AreaData,
+  type DemandBase,
+} from "@/lib/areas";
+import { periodChanges, ymLabel, type Change, type HistoryData } from "@/lib/history";
+import { meshCodeAt } from "@/lib/mesh";
+import { CATEGORIES, categoryColor, categoryRecord, digitsOnly, distanceKm, type CategoryId, type OfficeData } from "@/lib/offices";
 import { searchKey } from "@/lib/search-text";
-import type { MapOffice } from "./OfficeMap";
+import { GapPanel, type ColorMode } from "./GapPanel";
+import type { CellOverlay, MapPoint } from "./OfficeMap";
+import { AboutData, OfficeRow, type Row } from "./OfficeList";
+import { TrendPanel } from "./TrendPanel";
+import { Note, PickChips } from "./ui";
 
 const OfficeMap = dynamic(() => import("./OfficeMap").then((m) => m.OfficeMap), {
   ssr: false,
@@ -38,27 +48,62 @@ const PAGE = 150;
 const RADIUS_KEY = "care-office-map:radius";
 const ALL_ON: Record<CategoryId, boolean> = categoryRecord(true);
 
-type Row = MapOffice & { key: string };
+type Mode = "list" | "gap" | "trend";
+const MODES: { id: Mode; label: string }[] = [
+  { id: "list", label: "事業所をさがす" },
+  { id: "gap", label: "需要と競合" },
+  { id: "trend", label: "競合の動き" },
+];
+
+const PERIODS = [
+  { value: 6, label: "半年" },
+  { value: 12, label: "1年" },
+  { value: 36, label: "3年" },
+  { value: 600, label: "全期間" },
+];
+
+const GAP_CATEGORIES = CATEGORIES.filter((c) => c.id !== "ot");
+
+async function getJson<T>(url: string): Promise<T> {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return (await r.json()) as T;
+}
 
 export function OfficeMapApp() {
   const [data, setData] = useState<OfficeData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("list");
+
+  // 事業所をさがす
   const [query, setQuery] = useState("");
   const [cats, setCats] = useState<Record<CategoryId, boolean>>(ALL_ON);
   const [radius, setRadius] = useState<number>(DEFAULT_RADIUS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pendingSelect, setPendingSelect] = useState<string | null>(null);
   const [sameSpot, setSameSpot] = useState(0);
   const [shown, setShown] = useState(PAGE);
   const [fitToken, setFitToken] = useState(0);
   const [focus, setFocus] = useState<{ lat: number; lng: number; token: number } | null>(null);
 
+  // 需要と競合
+  const [areas, setAreas] = useState<AreaData | null>(null);
+  const [areasError, setAreasError] = useState<string | null>(null);
+  const [gapCat, setGapCat] = useState<CategoryId>("hh");
+  const [base, setBase] = useState<DemandBase>("p75");
+  const [colorMode, setColorMode] = useState<ColorMode>("short");
+  const [selectedCell, setSelectedCell] = useState<string | null>(null);
+  const [focusCell, setFocusCell] = useState<{ code: string; token: number } | null>(null);
+
+  // 競合の動き
+  const [history, setHistory] = useState<HistoryData | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [months, setMonths] = useState(12);
+  const [selectedChange, setSelectedChange] = useState<string | null>(null);
+
   useEffect(() => {
     let alive = true;
-    fetch("/data/offices.json", { cache: "no-store" })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<OfficeData>;
-      })
+    getJson<OfficeData>("/data/offices.json")
       .then((d) => {
         if (!alive) return;
         // 前回選んだ距離（端末ごと）。データと同時に反映して、地図の合わせ直しを1回で済ませる
@@ -69,6 +114,10 @@ export function OfficeMapApp() {
           // 保存できない端末では毎回の初期値で開く
         }
         setData(d);
+        // 近くの新規開設のお知らせに使うので、過去のデータも続けて読んでおく
+        getJson<HistoryData>("/data/history.json")
+          .then((h) => alive && setHistory(h))
+          .catch((e) => alive && setHistoryError(String(e)));
       })
       .catch((e) => alive && setLoadError(String(e)));
     return () => {
@@ -76,9 +125,27 @@ export function OfficeMapApp() {
     };
   }, []);
 
+  // 見方を切り替えたら、範囲の円全体が入るように地図を合わせ直す
+  const changeMode = (m: Mode) => {
+    setMode(m);
+    setFitToken((t) => t + 1);
+  };
+
+  // 人口は「需要と競合」を初めて開いたときに読む
+  useEffect(() => {
+    if (mode !== "gap" || areas || areasError) return;
+    let alive = true;
+    getJson<AreaData>("/data/areas.json")
+      .then((a) => alive && setAreas(a))
+      .catch((e) => alive && setAreasError(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [mode, areas, areasError]);
+
   const center = data?.center ?? null;
 
-  // 距離と検索用の文字を、データが来たときに1回だけ作る
+  // ---------- 事業所をさがす ----------
   const rows: Row[] = useMemo(() => {
     if (!data) return [];
     return data.offices.map((o) => ({
@@ -132,7 +199,18 @@ export function OfficeMapApp() {
     [rows, visible, shown],
   );
 
-  const onMapSelect = useCallback((id: string, spot: number) => select(id, spot, true), [select]);
+  // 「競合の動き」から事業所の詳細へ移ったとき、一覧に出てから選ぶ
+  useEffect(() => {
+    if (mode !== "list" || !pendingSelect) return;
+    if (!visible.some((o) => o.id === pendingSelect)) return;
+    const id = pendingSelect;
+    const t = setTimeout(() => {
+      setPendingSelect(null);
+      select(id);
+      requestAnimationFrame(() => document.getElementById(`row-${id}`)?.scrollIntoView({ block: "start" }));
+    }, 0);
+    return () => clearTimeout(t);
+  }, [mode, pendingSelect, visible, select]);
 
   const changeRadius = (r: number) => {
     setRadius(r);
@@ -145,91 +223,311 @@ export function OfficeMapApp() {
     }
   };
 
+  // ---------- 需要と競合 ----------
+  const gap = useMemo(() => {
+    if (mode !== "gap" || !areas || !data) return null;
+    return computeGap(areas.cells, data.offices, { center: data.center, category: gapCat, base, radiusKm: GAP_RADIUS_KM, maxKm: MAX_KM });
+  }, [mode, areas, data, gapCat, base]);
+
+  const ranking = useMemo(() => (gap ? shortageRanking(gap.cells.filter((g) => g.distance <= radius), base, 10) : []), [gap, radius, base]);
+  const selfCell = useMemo(() => {
+    if (!gap || !center) return null;
+    const code = meshCodeAt(center.lat, center.lng);
+    return gap.cells.find((g) => g.c === code) ?? null;
+  }, [gap, center]);
+  const selectedCellObj = useMemo(() => gap?.cells.find((g) => g.c === selectedCell) ?? null, [gap, selectedCell]);
+  const breaks = useMemo(() => (gap ? countBreaks(gap.cells.map((g) => g[base])) : [1, 2, 3, 4]), [gap, base]);
+
+  const cellOverlay: CellOverlay[] | undefined = useMemo(() => {
+    if (mode !== "gap" || !gap) return undefined;
+    const out: CellOverlay[] = [];
+    for (const g of gap.cells) {
+      if (colorMode === "short") {
+        const s = shortageStep(g.index);
+        if (!s || s.label === "ふつう") continue;
+        out.push({ code: g.c, color: s.color, opacity: s.opacity });
+      } else {
+        const v = g[base];
+        if (v <= 0) continue;
+        const i = breaks.findIndex((b) => v <= b);
+        out.push({ code: g.c, color: COUNT_COLORS[i < 0 ? COUNT_COLORS.length - 1 : i], opacity: 0.6 });
+      }
+    }
+    return out;
+  }, [mode, gap, colorMode, base, breaks]);
+
+  const pickCell = useCallback(
+    (code: string, fly: boolean) => {
+      if (!gap?.cells.some((g) => g.c === code)) {
+        setSelectedCell(null);
+        return;
+      }
+      setSelectedCell(code);
+      if (fly) setFocusCell({ code, token: Date.now() });
+    },
+    [gap],
+  );
+
+  // ---------- 競合の動き ----------
+  const changes = useMemo(() => {
+    if (!history || !center) return [];
+    return periodChanges(history, center, radius, months).filter((c) => c.categories.some((k) => cats[k]));
+  }, [history, center, radius, months, cats]);
+
+  /** 自社と同じサービスで、直近の時点に近くで新しく載った事業所（お知らせ） */
+  const alerts = useMemo(() => {
+    if (!history || !center) return [];
+    return periodChanges(history, center, ALERT_RADIUS_KM, 6).filter(
+      (c) => c.kind === "open" && c.categories.some((k) => (ALERT_CATEGORIES as readonly string[]).includes(k)),
+    );
+  }, [history, center]);
+
+  const officeOfChange = useCallback(
+    (c: Change) => data?.offices.find((o) => o.numbers.some((n) => digitsOnly(n) === c.no)) ?? null,
+    [data],
+  );
+
+  const openOfficeFromChange = (c: Change) => {
+    const o = officeOfChange(c);
+    if (!o) return;
+    const d = o.lat != null && o.lng != null && center ? distanceKm(center, { lat: o.lat, lng: o.lng }) : 0;
+    const r = RADII.find((x) => x >= d) ?? RADII[RADII.length - 1];
+    if (r > radius) changeRadius(r);
+    setQuery("");
+    setCats((s) => {
+      const next = { ...s };
+      for (const k of o.categories) next[k] = true;
+      return next;
+    });
+    changeMode("list");
+    setPendingSelect(o.id);
+  };
+
+  const showAlerts = () => {
+    setCats(() => {
+      const next = categoryRecord(false);
+      for (const k of ALERT_CATEGORIES) next[k] = true;
+      return next;
+    });
+    setMonths(6);
+    changeRadius(ALERT_RADIUS_KM);
+    setSelectedChange(null);
+    changeMode("trend");
+  };
+
+  // ---------- 地図に描くもの ----------
+  const points: MapPoint[] = useMemo(() => {
+    if (!data) return [];
+    if (mode === "gap") {
+      return data.offices
+        .filter((o) => o.lat != null && o.lng != null && !o.self && o.categories.includes(gapCat))
+        .map((o) => ({ id: o.id, lat: o.lat as number, lng: o.lng as number, color: "#334155" }));
+    }
+    if (mode === "trend") {
+      return changes
+        .filter((c) => c.lat != null && c.lng != null)
+        .map((c) => ({
+          id: c.key,
+          lat: c.lat as number,
+          lng: c.lng as number,
+          color: categoryColor(c.categories.find((k) => cats[k]) ?? c.categories[0]),
+          style: c.kind === "closed" || c.kind === "dropped" ? ("gone" as const) : ("new" as const),
+        }));
+    }
+    return visible
+      .filter((o) => o.lat != null && o.lng != null && !o.self)
+      .map((o) => ({
+        id: o.id,
+        lat: o.lat as number,
+        lng: o.lng as number,
+        // 絞り込みで表示中の種類のうち、いちばん先のものの色で塗る
+        color: categoryColor(o.categories.find((c) => cats[c]) ?? o.categories[0]),
+      }));
+  }, [data, mode, gapCat, changes, visible, cats]);
+
+  const onMapSelect = useCallback(
+    (id: string, spot: number) => {
+      if (mode === "list") select(id, spot, true);
+      else if (mode === "trend") {
+        setSelectedChange(id);
+        requestAnimationFrame(() =>
+          document.getElementById(`chg-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+        );
+      } else {
+        const o = data?.offices.find((x) => x.id === id);
+        if (o?.lat != null && o.lng != null) pickCell(meshCodeAt(o.lat, o.lng), false);
+      }
+    },
+    [mode, select, data, pickCell],
+  );
+
+  const onCellSelect = useCallback((code: string) => pickCell(code, false), [pickCell]);
+
   const hasData = (data?.offices.length ?? 0) > 0;
+  const gapCatName = CATEGORIES.find((c) => c.id === gapCat)?.name ?? "";
+
+  const subline =
+    mode === "list"
+      ? `自社から${radius}km以内${data ? `・${visible.length.toLocaleString("ja-JP")}件` : ""}`
+      : mode === "gap"
+        ? `${gapCatName}が${DEMAND_LABEL[base]}の人数に対して足りている場所・足りない場所`
+        : `自社から${radius}km以内で新しく載った／載らなくなった事業所`;
+
+  const radiusChips = (
+    <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="自社からの距離">
+      <span className="shrink-0 pr-0.5 text-xs text-muted">距離</span>
+      {RADII.map((r) => (
+        <button
+          key={r}
+          type="button"
+          aria-pressed={radius === r}
+          onClick={() => changeRadius(r)}
+          className={`shrink-0 rounded-full border px-3 py-1 text-[13px] tabular-nums ${radius === r ? "border-accent bg-accent text-white" : "border-rule bg-white"}`}
+        >
+          {r}km
+        </button>
+      ))}
+    </div>
+  );
+
+  const categoryChips = (withCounts: boolean) => (
+    <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="サービスの種類">
+      {CATEGORIES.filter((c) => c.id !== "ot" || counts.ot > 0).map((c) => {
+        const on = cats[c.id];
+        return (
+          <button
+            key={c.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => {
+              setCats((s) => ({ ...s, [c.id]: !s[c.id] }));
+              setShown(PAGE);
+            }}
+            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-rule bg-white px-3 py-1 text-[13px] ${on ? "" : "opacity-55"}`}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={on ? { background: c.color } : { boxShadow: `inset 0 0 0 2px ${c.color}` }} />
+            {c.name}
+            {withCounts && <span className="text-[11px] tabular-nums text-muted">{counts[c.id]}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-2.5 px-4 pt-2.5 lg:pt-4">
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg font-bold tracking-wide">花見川 事業所マップ</h1>
-          <p className="truncate text-xs text-muted">
-            自社から{radius}km以内{data && `・${visible.length.toLocaleString("ja-JP")}件`}
-          </p>
+          <p className="truncate text-xs text-muted">{subline}</p>
         </div>
-        <a
-          href="#about-data"
-          className="shrink-0 rounded-full border border-rule bg-white px-3 py-1.5 text-xs font-bold text-ink"
-        >
-          データについて
-        </a>
+        {mode === "list" && (
+          <a href="#about-data" className="shrink-0 rounded-full border border-rule bg-white px-3 py-1.5 text-xs font-bold text-ink">
+            データについて
+          </a>
+        )}
       </header>
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
-        <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3 lg:min-w-[320px] lg:flex-1">
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input
-            type="search"
-            autoComplete="off"
-            enterKeyHint="search"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setShown(PAGE);
-            }}
-            placeholder="事業所名・法人名・住所・電話番号"
-            aria-label="事業所を検索"
-            className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none"
-          />
-          {query && (
-            <button type="button" onClick={() => setQuery("")} className="shrink-0 text-sm text-muted" aria-label="検索語を消す">
-              ×
-            </button>
-          )}
-        </label>
+      <nav className="grid grid-cols-3 rounded-lg border border-rule bg-white p-0.5 text-[13px] font-bold lg:max-w-md" aria-label="見方">
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            aria-pressed={mode === m.id}
+            onClick={() => changeMode(m.id)}
+            className={`rounded-md px-2 py-1.5 ${mode === m.id ? "bg-ink text-white" : "text-ink"}`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </nav>
 
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="サービスの種類">
-          {CATEGORIES.filter((c) => c.id !== "ot" || counts.ot > 0).map((c) => {
-            const on = cats[c.id];
-            return (
-              <button
-                key={c.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => {
-                  setCats((s) => ({ ...s, [c.id]: !s[c.id] }));
+      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
+        {mode === "list" && (
+          <>
+            <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3 lg:min-w-[320px] lg:flex-1">
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <input
+                type="search"
+                autoComplete="off"
+                enterKeyHint="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
                   setShown(PAGE);
                 }}
-                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-rule bg-white px-3 py-1 text-[13px] ${on ? "" : "opacity-55"}`}
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={on ? { background: c.color } : { boxShadow: `inset 0 0 0 2px ${c.color}` }}
-                />
-                {c.name}
-                <span className="text-[11px] tabular-nums text-muted">{counts[c.id]}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="自社からの距離">
-          <span className="shrink-0 pr-0.5 text-xs text-muted">距離</span>
-          {RADII.map((r) => (
-            <button
-              key={r}
-              type="button"
-              aria-pressed={radius === r}
-              onClick={() => changeRadius(r)}
-              className={`shrink-0 rounded-full border px-3 py-1 text-[13px] tabular-nums ${radius === r ? "border-accent bg-accent text-white" : "border-rule bg-white"}`}
-            >
-              {r}km
-            </button>
-          ))}
-        </div>
+                placeholder="事業所名・法人名・住所・電話番号"
+                aria-label="事業所を検索"
+                className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none"
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery("")} className="shrink-0 text-sm text-muted" aria-label="検索語を消す">
+                  ×
+                </button>
+              )}
+            </label>
+            {categoryChips(true)}
+            {radiusChips}
+          </>
+        )}
+        {mode === "gap" && (
+          <>
+            <PickChips
+              label="比べる"
+              options={GAP_CATEGORIES.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
+              value={gapCat}
+              onChange={(v) => {
+                setGapCat(v);
+                // 障害のサービスは高齢者ではなく総人口で見るのが自然なので、切り替えたときに寄せる
+                if ((v === "dv" || v === "cs") && base !== "pop") setBase("pop");
+                if (v !== "dv" && v !== "cs" && base === "pop") setBase("p75");
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <PickChips
+                label="人数"
+                options={(["p75", "p65", "pop"] as DemandBase[]).map((b) => ({ value: b, label: DEMAND_LABEL[b] }))}
+                value={base}
+                onChange={setBase}
+              />
+              <PickChips
+                label="色"
+                options={[
+                  { value: "short" as ColorMode, label: "足りなさ" },
+                  { value: "count" as ColorMode, label: "人数" },
+                ]}
+                value={colorMode}
+                onChange={setColorMode}
+              />
+            </div>
+            {radiusChips}
+          </>
+        )}
+        {mode === "trend" && (
+          <>
+            {categoryChips(false)}
+            <PickChips label="期間" options={PERIODS} value={months} onChange={setMonths} />
+            {radiusChips}
+          </>
+        )}
       </div>
+
+      {mode === "list" && alerts.length > 0 && (
+        <button
+          type="button"
+          onClick={showAlerts}
+          className="flex items-center justify-between gap-2 rounded-lg border border-ink bg-white px-3 py-2 text-left text-[13px]"
+        >
+          <span className="min-w-0">
+            <b>{ALERT_RADIUS_KM}km以内に新しい訪問介護・障害の訪問系が{alerts.length}件</b>
+            <span className="text-muted">（{ymLabel(alerts[0].to)}までの半年の公表）</span>
+          </span>
+          <span className="shrink-0 text-xs font-bold text-accent">見る</span>
+        </button>
+      )}
 
       <main className="flex min-h-0 flex-1 flex-col gap-2.5 lg:flex-row">
         <div className="relative h-[42%] min-h-56 shrink-0 lg:order-2 lg:h-auto lg:flex-1">
@@ -237,10 +535,12 @@ export function OfficeMapApp() {
             <OfficeMap
               center={center}
               radiusKm={radius}
-              offices={visible}
-              activeCategories={cats}
-              selectedId={selectedId}
+              points={points}
+              selectedId={mode === "trend" ? selectedChange : mode === "list" ? selectedId : null}
               onSelect={onMapSelect}
+              cells={cellOverlay}
+              focusCell={mode === "gap" ? focusCell : null}
+              onCellSelect={mode === "gap" ? onCellSelect : undefined}
               fitToken={fitToken}
               focus={focus}
             />
@@ -258,266 +558,101 @@ export function OfficeMapApp() {
           )}
         </div>
 
-        <section className="min-h-0 flex-1 overflow-y-auto pb-4 lg:order-1 lg:w-[400px] lg:flex-none" aria-label="事業所一覧">
-          <div className="sticky top-0 z-10 flex items-baseline justify-between bg-paper px-0.5 pb-1.5 text-xs text-muted">
-            <span>
-              <b className="text-[15px] tabular-nums text-ink">{visible.length.toLocaleString("ja-JP")}</b> 件
-            </span>
-            <span>自社から近い順</span>
-          </div>
-
-          {!data && !loadError && <Note>事業所データを読み込んでいます…</Note>}
-          {loadError && <Note title="事業所データを読み込めませんでした">通信状態を確認して、開き直してください。（{loadError}）</Note>}
-          {data && !hasData && (
-            <Note title="事業所データはまだ入っていません">
-              GitHub の Actions にある「事業所データの更新」を実行すると、厚生労働省と WAM NET の公表データを取り込んでここに並びます。
-            </Note>
-          )}
-          {hasData && visible.length === 0 && (
-            <Note title="条件に合う事業所がありません">距離を広げるか、サービスの絞り込みや検索語を見直してください。</Note>
+        <section className="min-h-0 flex-1 overflow-y-auto pb-4 lg:order-1 lg:w-[400px] lg:flex-none" aria-label={MODES.find((m) => m.id === mode)?.label}>
+          {mode === "gap" && (
+            <GapPanel
+              gap={gap}
+              error={areasError}
+              category={gapCat}
+              base={base}
+              colorMode={colorMode}
+              radiusKm={radius}
+              ranking={ranking}
+              selfCell={selfCell}
+              selectedCell={selectedCellObj}
+              breaks={breaks}
+              onPickCell={(code) => pickCell(code, true)}
+            />
           )}
 
-          <ol className="flex flex-col gap-1.5">
-            {visible.slice(0, shown).map((o) => (
-              <OfficeRow
-                key={o.id}
-                office={o}
-                open={o.id === selectedId}
-                sameSpot={o.id === selectedId ? sameSpot : 0}
-                center={center}
-                forms={data?.kaigoDetailForms}
-                onToggle={() => select(o.id)}
-              />
-            ))}
-          </ol>
-          {visible.length > shown && (
-            <button
-              type="button"
-              onClick={() => setShown((s) => s + PAGE)}
-              className="mt-2 w-full rounded-lg border border-dashed border-rule py-2.5 text-sm text-muted"
-            >
-              さらに表示（残り {(visible.length - shown).toLocaleString("ja-JP")} 件）
-            </button>
+          {mode === "trend" && (
+            <TrendPanel
+              history={history}
+              error={historyError}
+              center={center}
+              radiusKm={radius}
+              cats={cats}
+              months={months}
+              changes={changes}
+              selectedKey={selectedChange}
+              onSelect={(key) => {
+                setSelectedChange((cur) => (cur === key ? null : key));
+                const c = changes.find((x) => x.key === key);
+                if (c?.lat != null && c.lng != null) setFocus({ lat: c.lat, lng: c.lng, token: Date.now() });
+              }}
+              hasCurrent={(c) => !!officeOfChange(c)}
+              onOpenOffice={openOfficeFromChange}
+            />
           )}
 
-          {data && <AboutData data={data} />}
+          {mode === "list" && (
+            <>
+              <div className="sticky top-0 z-10 flex items-baseline justify-between bg-paper px-0.5 pb-1.5 text-xs text-muted">
+                <span>
+                  <b className="text-[15px] tabular-nums text-ink">{visible.length.toLocaleString("ja-JP")}</b> 件
+                </span>
+                <span>自社から近い順</span>
+              </div>
+
+              {!data && !loadError && <Note>事業所データを読み込んでいます…</Note>}
+              {loadError && <Note title="事業所データを読み込めませんでした">通信状態を確認して、開き直してください。（{loadError}）</Note>}
+              {data && !hasData && (
+                <Note title="事業所データはまだ入っていません">
+                  GitHub の Actions にある「事業所データの更新」を実行すると、厚生労働省と WAM NET の公表データを取り込んでここに並びます。
+                </Note>
+              )}
+              {hasData && visible.length === 0 && (
+                <Note title="条件に合う事業所がありません">距離を広げるか、サービスの絞り込みや検索語を見直してください。</Note>
+              )}
+
+              <ol className="flex flex-col gap-1.5">
+                {visible.slice(0, shown).map((o) => (
+                  <OfficeRow
+                    key={o.id}
+                    office={o}
+                    open={o.id === selectedId}
+                    sameSpot={o.id === selectedId ? sameSpot : 0}
+                    center={center}
+                    forms={data?.kaigoDetailForms}
+                    onToggle={() => select(o.id)}
+                  />
+                ))}
+              </ol>
+              {visible.length > shown && (
+                <button
+                  type="button"
+                  onClick={() => setShown((s) => s + PAGE)}
+                  className="mt-2 w-full rounded-lg border border-dashed border-rule py-2.5 text-sm text-muted"
+                >
+                  さらに表示（残り {(visible.length - shown).toLocaleString("ja-JP")} 件）
+                </button>
+              )}
+
+              {data && (
+                <AboutData
+                  data={data}
+                  extra={
+                    <p className="text-[11px] leading-relaxed text-muted">
+                      「需要と競合」の人口：総務省統計局「令和2年国勢調査」250mメッシュ・小地域境界（e-Stat）を加工。
+                      「競合の動き」：厚生労働省（2021年6月末〜）・WAM NET（2021年11月末〜）の過去の公表データを加工。
+                    </p>
+                  }
+                />
+              )}
+            </>
+          )}
         </section>
       </main>
     </div>
-  );
-}
-
-function Note({ title, children }: { title?: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-2 grid gap-1.5 rounded-xl border border-rule bg-white p-4 text-sm">
-      {title && <h2 className="font-bold">{title}</h2>}
-      <p className="text-muted">{children}</p>
-    </div>
-  );
-}
-
-function ServiceChip({ service }: { service: string }) {
-  const color = categoryColor(categoryOf(service));
-  return (
-    <span
-      className="rounded px-1.5 text-[11px] font-bold leading-relaxed"
-      style={{ color, background: `${color}1f` }}
-    >
-      {service}
-    </span>
-  );
-}
-
-function OfficeRow({
-  office: o,
-  open,
-  sameSpot,
-  center,
-  forms,
-  onToggle,
-}: {
-  office: Row;
-  open: boolean;
-  sameSpot: number;
-  center: { lat: number; lng: number } | null;
-  forms?: Record<string, string>;
-  onToggle: () => void;
-}) {
-  const both =
-    o.categories.some((c) => c === "cm" || c === "hh" || c === "vn") && o.categories.some((c) => c === "dv" || c === "cs");
-  return (
-    <li id={`row-${o.id}`} className={`rounded-lg border bg-white ${open ? "border-accent ring-1 ring-accent" : "border-rule"}`}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="grid w-full grid-cols-[1fr_auto] gap-x-2.5 gap-y-0.5 px-3 py-2.5 text-left">
-        <span className="min-w-0 break-words text-[15px] font-bold leading-snug">{o.name}</span>
-        <span className="self-start whitespace-nowrap text-sm tabular-nums">{o.self ? "自社" : formatDistance(o.distance)}</span>
-        <span className="col-span-2 flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted">
-          {o.self && <span className="rounded bg-accent px-1.5 text-[11px] font-bold leading-relaxed text-white">自社</span>}
-          {both && <span className="rounded bg-[#eef2f1] px-1.5 text-[11px] font-bold leading-relaxed">介護＋障害</span>}
-          {o.services.map((s) => (
-            <ServiceChip key={s} service={s} />
-          ))}
-          {o.corp && <span>{o.corp}</span>}
-        </span>
-        <span className="col-span-2 break-words text-xs text-muted">{o.address}</span>
-      </button>
-      {open && <OfficeDetail office={o} sameSpot={sameSpot} center={center} forms={forms} />}
-    </li>
-  );
-}
-
-function OfficeDetail({
-  office: o,
-  sameSpot,
-  center,
-  forms,
-}: {
-  office: Row;
-  sameSpot: number;
-  center: { lat: number; lng: number } | null;
-  forms?: Record<string, string>;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [nameCopied, setNameCopied] = useState(false);
-  const hasShogai = o.categories.some((c) => c === "dv" || c === "cs");
-  // WAM NET は事業所ページへ直接行けないので、名前をコピーしてから検索の入口を開く
-  const copyName = () => {
-    try {
-      navigator.clipboard.writeText(o.name).then(
-        () => setNameCopied(true),
-        () => undefined,
-      );
-    } catch {
-      // コピーできない端末でも、リンクはそのまま開く
-    }
-  };
-  const copyTel = async () => {
-    if (!o.tel) return;
-    try {
-      await navigator.clipboard.writeText(o.tel);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // コピーできない端末では、番号を長押しで選んでもらう
-    }
-  };
-  const act = "inline-flex items-center rounded-lg border border-rule bg-[#eef2f1] px-2.5 py-1.5 text-[13px] font-bold text-ink";
-  return (
-    <div className="grid gap-2 border-t border-rule px-3 pb-3 pt-2.5 text-sm">
-      <dl className="grid grid-cols-[5.5em_1fr] gap-x-2.5 gap-y-0.5">
-        {o.tel && <Item label="電話"><span className="select-all tabular-nums">{o.tel}</span></Item>}
-        {o.fax && <Item label="FAX"><span className="select-all tabular-nums">{o.fax}</span></Item>}
-        {o.numbers.length > 0 && <Item label="事業所番号"><span className="select-all tabular-nums">{o.numbers.join("、")}</span></Item>}
-        {o.capacity.length > 0 && <Item label="定員">{o.capacity.join("、")}</Item>}
-        {o.days && <Item label="曜日">{o.days}</Item>}
-        {o.corp && <Item label="法人">{o.corp}</Item>}
-      </dl>
-      <div className="flex flex-wrap gap-1.5">
-        {o.lat != null && o.lng != null && (
-          <>
-            <a className={`${act} border-accent bg-accent text-white`} target="_blank" rel="noopener" href={`https://www.google.com/maps/search/?api=1&query=${o.lat}%2C${o.lng}`}>
-              Googleマップ
-            </a>
-            {center && !o.self && (
-              <a className={act} target="_blank" rel="noopener" href={`https://www.google.com/maps/dir/?api=1&origin=${center.lat}%2C${center.lng}&destination=${o.lat}%2C${o.lng}&travelmode=driving`}>
-                自社からの道順
-              </a>
-            )}
-          </>
-        )}
-        {o.tel && (
-          <>
-            <a className={act} href={`tel:${digitsOnly(o.tel)}`}>電話をかける</a>
-            <button type="button" className={act} onClick={copyTel}>{copied ? "コピーしました" : "番号をコピー"}</button>
-          </>
-        )}
-        {/* ホームページは公表データに載っているときだけ押せる。無いときは灰色で押せない */}
-        {o.url ? (
-          <a className={act} target="_blank" rel="noopener" href={o.url}>ホームページ</a>
-        ) : (
-          <button type="button" disabled className={`${act} cursor-not-allowed opacity-45`}>ホームページなし</button>
-        )}
-      </div>
-      {((o.kaigoPages?.length ?? 0) > 0 || hasShogai) && (
-        <div className="grid gap-1.5 rounded-lg bg-[#f3f5f2] p-2.5">
-          <p className="text-xs text-muted">公表ページ（従業者の数・決算書類などが見られます）</p>
-          <div className="flex flex-wrap gap-1.5">
-            {o.kaigoPages?.map((p) => (
-              <a key={p.code} className={`${act} bg-white`} target="_blank" rel="noopener" href={kaigoPageUrl(p, forms)}>
-                {o.kaigoPages && o.kaigoPages.length > 1 ? `介護の公表ページ（${p.service}）` : "介護の公表ページ"}
-              </a>
-            ))}
-            {hasShogai && (
-              <a className={`${act} bg-white`} target="_blank" rel="noopener" href={WAM_SEARCH_URL} onClick={copyName}>
-                障害の公表ページを探す
-              </a>
-            )}
-          </div>
-          {hasShogai && (
-            <p className="text-[11px] leading-relaxed text-muted">
-              {nameCopied
-                ? "事業所名をコピーしました。開いた検索画面の事業所名の欄に貼り付けてください。"
-                : "障害の公表ページ（WAM NET）は直接開けないため、事業所名をコピーして検索画面を開きます。"}
-            </p>
-          )}
-        </div>
-      )}
-      {sameSpot > 1 && <p className="text-xs text-muted">この場所には、ほかに {sameSpot - 1} 件の事業所があります。一覧の前後を確認してください。</p>}
-      {o.lat == null && <p className="text-xs text-muted">公表データに位置情報がないため、地図には出していません。</p>}
-    </div>
-  );
-}
-
-function Item({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <>
-      <dt className="pt-px text-xs text-muted">{label}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
-    </>
-  );
-}
-
-function fmtDate(iso?: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-function AboutData({ data }: { data: OfficeData }) {
-  return (
-    <section id="about-data" className="mt-5 grid gap-2.5 rounded-xl border border-rule bg-white p-4 text-[13px]">
-      <h2 className="text-sm font-bold">データについて</h2>
-      <p className="text-muted">
-        距離の基準：{data.center.label}。ここから {data.maxKm}km 以内の事業所を収録しています（{fmtDate(data.generatedAt)} 作成）。
-      </p>
-      {data.sources.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] text-muted">
-                <th className="py-1.5 pr-2 font-normal">サービス</th>
-                <th className="py-1.5 pr-2 text-right font-normal">件数</th>
-                <th className="py-1.5 font-normal">時点・取得日</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.sources.map((s) => (
-                <tr key={s.service} className="border-t border-rule align-top">
-                  <td className="py-1.5 pr-2"><ServiceChip service={s.service} /></td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums">{s.count}</td>
-                  <td className="py-1.5 text-muted">
-                    {s.asOf ? `${s.asOf}・` : ""}
-                    {fmtDate(s.fetchedAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="text-[11px] leading-relaxed text-muted">
-        出典：「介護サービス情報公表システム」（厚生労働省）および「障害福祉サービス等情報公表システム」（独立行政法人福祉医療機構 WAM NET）のオープンデータから抽出・加工（CC BY 4.0）。地図：Esri（白地図）・国土地理院（淡色地図）。
-        内容は公表時点のものです。最新の状況は各事業所に確認してください。
-      </p>
-    </section>
   );
 }

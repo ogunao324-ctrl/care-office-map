@@ -128,8 +128,8 @@ export function shortageRanking(gap: GapCell[], base: DemandBase, limit = 10): G
 
 /** 足りなさの段階（地図の色と凡例） */
 export const SHORTAGE_STEPS: { max: number; label: string; color: string; opacity: number }[] = [
-  { max: 0.5, label: "とても少ない（平均の半分以下）", color: "#c2410c", opacity: 0.55 },
-  { max: 0.8, label: "少ない", color: "#f59e0b", opacity: 0.42 },
+  { max: 0.5, label: "とても少ない（平均の半分以下）", color: "#c2410c", opacity: 0.5 },
+  { max: 0.8, label: "少ない", color: "#f59e0b", opacity: 0.34 },
   { max: 1.25, label: "ふつう", color: "#94a3b8", opacity: 0.1 },
   { max: Infinity, label: "多い", color: "#0f766e", opacity: 0.22 },
 ];

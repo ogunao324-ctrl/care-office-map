@@ -14,13 +14,17 @@
  *   縁取りは白で統一（2色の縁取りはごちゃつくのでやめた）。
  * - 同じ場所に複数の事業所があるときは、少し大きい点を1つだけ描き、
  *   押したら先頭の事業所を選ぶ（一覧側に「ほかにN件」と出す）。
+ * - 点の色や形は画面側（OfficeMapApp）が決めて points で渡す。
+ *   「競合の動き」では新しく載った事業所を濃い縁取り、載らなくなった事業所を白抜きの灰色で描く。
+ * - 「需要と競合」では、500m 四方のマス（cells）を色で塗って事業所の下に重ねる。
  */
 
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CHIBA_LANDMARKS } from "@/lib/landmarks";
-import { categoryColor, type CategoryId, type LatLng, type Office } from "@/lib/offices";
+import { meshBounds, meshCodeAt } from "@/lib/mesh";
+import type { LatLng } from "@/lib/offices";
 
 type TileStyle = "white" | "pale";
 
@@ -40,15 +44,28 @@ const TILES: Record<TileStyle, { url: string; label: string; attribution: string
   },
 };
 
-export type MapOffice = Office & { distance: number | null };
+export type MapPoint = {
+  id: string;
+  lat: number;
+  lng: number;
+  color: string;
+  /** normal：塗り＋白い縁 / new：塗り＋濃い縁 / gone：白抜きの灰色 */
+  style?: "normal" | "new" | "gone";
+};
+
+export type CellOverlay = { code: string; color: string; opacity: number };
 
 type Props = {
   center: LatLng & { label: string };
   radiusKm: number;
-  offices: MapOffice[];
-  activeCategories: Record<CategoryId, boolean>;
+  points: MapPoint[];
   selectedId: string | null;
   onSelect: (id: string, sameSpot: number) => void;
+  /** 500m 四方のマスの色分け（需要と競合） */
+  cells?: CellOverlay[];
+  /** 選んだマス（枠で囲み、そこへ寄る） */
+  focusCell?: { code: string; token: number } | null;
+  onCellSelect?: (code: string) => void;
   /** 値が変わるたびに、範囲の円全体が入るように合わせる */
   fitToken: number;
   /** 値が変わるたびに、選んだ事業所へ寄る */
@@ -62,13 +79,28 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
-export function OfficeMap({ center, radiusKm, offices, activeCategories, selectedId, onSelect, fitToken, focus }: Props) {
+export function OfficeMap({
+  center,
+  radiusKm,
+  points,
+  selectedId,
+  onSelect,
+  cells,
+  focusCell,
+  onCellSelect,
+  fitToken,
+  focus,
+}: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const LRef = useRef<typeof Leaflet | null>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const tileRef = useRef<Leaflet.TileLayer | null>(null);
   const officeLayerRef = useRef<Leaflet.LayerGroup | null>(null);
   const landmarkLayerRef = useRef<Leaflet.LayerGroup | null>(null);
+  const cellLayerRef = useRef<Leaflet.LayerGroup | null>(null);
+  const cellRendererRef = useRef<Leaflet.Canvas | null>(null);
+  const focusCellRef = useRef<Leaflet.Rectangle | null>(null);
+  const onCellSelectRef = useRef(onCellSelect);
   const rendererRef = useRef<Leaflet.Canvas | null>(null);
   const circleRef = useRef<Leaflet.Circle | null>(null);
   const selfRef = useRef<Leaflet.Marker | null>(null);
@@ -79,7 +111,8 @@ export function OfficeMap({ center, radiusKm, offices, activeCategories, selecte
 
   useEffect(() => {
     onSelectRef.current = onSelect;
-  }, [onSelect]);
+    onCellSelectRef.current = onCellSelect;
+  }, [onSelect, onCellSelect]);
 
   // 地図の初期化（1回だけ）
   useEffect(() => {
@@ -96,6 +129,10 @@ export function OfficeMap({ center, radiusKm, offices, activeCategories, selecte
       });
       L.control.zoom({ position: "topright", zoomInTitle: "拡大", zoomOutTitle: "縮小" }).addTo(map);
       L.control.attribution({ position: "bottomright", prefix: false }).addTo(map);
+      // マスの色分けは事業所の点より下に描く（専用の層）
+      map.createPane("cells").style.zIndex = "350";
+      cellRendererRef.current = L.canvas({ padding: 0.3, pane: "cells" });
+      cellLayerRef.current = L.layerGroup().addTo(map);
       rendererRef.current = L.canvas({ padding: 0.3, tolerance: 6 });
       circleRef.current = L.circle([center.lat, center.lng], {
         radius: radiusKm * 1000,
@@ -115,6 +152,8 @@ export function OfficeMap({ center, radiusKm, offices, activeCategories, selecte
         zIndexOffset: 1000,
       }).addTo(map);
       map.on("zoomend", () => setZoom(map.getZoom()));
+      // マスは点の下の別の層にあって直接は押せないので、地図を押した位置からマスの番号を出す
+      map.on("click", (e: Leaflet.LeafletMouseEvent) => onCellSelectRef.current?.(meshCodeAt(e.latlng.lat, e.latlng.lng)));
       map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12] });
       setZoom(map.getZoom());
       mapRef.current = map;
@@ -211,6 +250,40 @@ export function OfficeMap({ center, radiusKm, offices, activeCategories, selecte
     map.flyTo([focus.lat, focus.lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
   }, [ready, focus]);
 
+  // マスの色分け
+  useEffect(() => {
+    const L = LRef.current;
+    const layer = cellLayerRef.current;
+    const renderer = cellRendererRef.current;
+    if (!ready || !L || !layer || !renderer) return;
+    layer.clearLayers();
+    for (const c of cells ?? []) {
+      const b = meshBounds(c.code);
+      const r = L.rectangle(
+        [
+          [b.south, b.west],
+          [b.north, b.east],
+        ],
+        { renderer, pane: "cells", stroke: false, fillColor: c.color, fillOpacity: c.opacity, interactive: false },
+      );
+      r.addTo(layer);
+    }
+  }, [ready, cells]);
+
+  // 選んだマスを枠で囲んで寄る
+  useEffect(() => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!ready || !L || !map) return;
+    focusCellRef.current?.remove();
+    focusCellRef.current = null;
+    if (!focusCell) return;
+    const b = meshBounds(focusCell.code);
+    const bounds = L.latLngBounds([b.south, b.west], [b.north, b.east]);
+    focusCellRef.current = L.rectangle(bounds, { color: "#15211e", weight: 2.5, fill: false, interactive: false }).addTo(map);
+    map.flyTo(bounds.getCenter(), Math.max(map.getZoom(), 14), { duration: 0.6 });
+  }, [ready, focusCell]);
+
   // 事業所の点
   useEffect(() => {
     const L = LRef.current;
@@ -219,33 +292,33 @@ export function OfficeMap({ center, radiusKm, offices, activeCategories, selecte
     if (!ready || !L || !layer || !renderer) return;
     layer.clearLayers();
     const r = zoom < 12.5 ? 4 : zoom < 14 ? 5.5 : 7;
-    const groups = new Map<string, MapOffice[]>();
-    for (const o of offices) {
-      if (o.lat == null || o.lng == null || o.self) continue;
-      const key = `${o.lat.toFixed(5)},${o.lng.toFixed(5)}`;
+    const groups = new Map<string, MapPoint[]>();
+    for (const p of points) {
+      const key = `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
       const g = groups.get(key) ?? [];
-      g.push(o);
+      g.push(p);
       groups.set(key, g);
     }
-    let selected: MapOffice | null = null;
-    for (const g of groups.values()) {
-      const o = g[0];
-      // 絞り込みで表示中の種類のうち、いちばん先のものの色で塗る
-      const color = categoryColor(o.categories.find((c) => activeCategories[c]) ?? o.categories[0]);
-      const m = L.circleMarker([o.lat as number, o.lng as number], {
-        renderer,
-        radius: r + (g.length > 1 ? 1 : 0),
-        fillColor: color,
-        fillOpacity: 0.9,
-        color: "#ffffff",
-        weight: 1.5,
-      });
-      m.on("click", () => onSelectRef.current(o.id, g.length));
+    let selected: MapPoint | null = null;
+    // 載らなくなった（白抜き）を先に描き、塗りの点を上に重ねる
+    const ordered = [...groups.values()].sort((a, b) => Number(b[0].style === "gone") - Number(a[0].style === "gone"));
+    for (const g of ordered) {
+      const p = g[0];
+      const size = r + (g.length > 1 ? 1 : 0);
+      const opts: Leaflet.CircleMarkerOptions =
+        p.style === "gone"
+          ? { renderer, radius: size, fillColor: "#ffffff", fillOpacity: 1, color: "#7a837f", weight: 2, dashArray: "3 2" }
+          : p.style === "new"
+            ? { renderer, radius: size + 1, fillColor: p.color, fillOpacity: 0.95, color: "#15211e", weight: 2.5 }
+            : { renderer, radius: size, fillColor: p.color, fillOpacity: 0.9, color: "#ffffff", weight: 1.5 };
+      // 点を押したときに地図の click（マスの選択）まで届かないようにする
+      const m = L.circleMarker([p.lat, p.lng], { ...opts, bubblingMouseEvents: false });
+      m.on("click", () => onSelectRef.current(p.id, g.length));
       m.addTo(layer);
       const hit = g.find((x) => x.id === selectedId);
       if (hit) selected = hit;
     }
-    if (selected && selected.lat != null && selected.lng != null) {
+    if (selected) {
       L.circleMarker([selected.lat, selected.lng], {
         renderer,
         radius: r + 6,
@@ -255,7 +328,7 @@ export function OfficeMap({ center, radiusKm, offices, activeCategories, selecte
         interactive: false,
       }).addTo(layer);
     }
-  }, [ready, offices, activeCategories, selectedId, zoom]);
+  }, [ready, points, selectedId, zoom]);
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-rule">

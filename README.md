@@ -8,6 +8,14 @@
 - 詳細から Googleマップ・自社からの道順・電話・ホームページ・公表ページ（従業者の数・決算書類）へ
 - 地図はつむぐと同じ見た目：既定は文字の無い白地図（Esri）に駅・区の名前を控えめに重ねたもの。国土地理院の淡色地図にも切り替え可
 
+画面上のタブで3つの見方を切り替える。
+
+- **事業所をさがす**：上の一覧・検索。自社の近く（2km）に訪問介護・障害の訪問系が新しく載ったときはお知らせを出す
+- **需要と競合**：500m 四方のマスごとに、半径2kmの人口（75歳以上・65歳以上・総人口）と、選んだ種類の事業所の数を数え、
+  1,000人あたりの事業所数を 10km 圏の平均と比べて色分けする。足りない町をランキングで出す
+- **競合の動き**：過去の公表データ（介護 2021年6月末〜、障害 2021年11月末〜）と比べて、期間内に新しく載った／載らなくなった事業所と、
+  範囲内の事業所数の推移を出す。「公表データに載ったか」で見ているので、開設日・廃止日そのものではない
+
 ## 構成
 
 | 場所 | 中身 |
@@ -19,6 +27,11 @@
 | `scripts/update-data.ts` | 公表データを取得して `public/data/offices.json` を作る |
 | `scripts/sources.ts` | 公表ページからダウンロード先の URL を拾う |
 | `data/rows/` | サービスごとの取得結果（介護と障害で公表時期が違うので別々に持つ） |
+| `src/components/GapPanel.tsx` / `src/lib/areas.ts` | 需要と競合（充足度の計算・ランキング） |
+| `src/components/TrendPanel.tsx` / `src/lib/history.ts` | 競合の動き（推移・新規／廃止） |
+| `src/lib/mesh.ts` | 地域メッシュ番号 ⇔ 緯度経度 |
+| `scripts/update-population.ts` | 国勢調査の人口 → `public/data/areas.json`（ファイルが無いときだけ作る） |
+| `scripts/update-history.ts` | 過去の公表データ → `data/history/`（時点ごと）と `public/data/history.json` |
 | `.github/workflows/update-data.yml` | データの自動更新（GitHub Actions） |
 
 ## データの更新
@@ -55,3 +68,4 @@ npm run build
 - 介護サービス情報公表システム（厚生労働省）オープンデータ … https://www.mhlw.go.jp/stf/kaigo-kouhyou_opendata.html
 - 障害福祉サービス等情報公表システム（WAM NET）オープンデータ … https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/
 - 地図：Esri World Light Gray Base（白地図）、国土地理院 地理院タイル（淡色地図）
+- 人口：総務省統計局「令和2年国勢調査」250m メッシュ（統計表 T001102）・小地域境界（e-Stat 地図で見る統計）

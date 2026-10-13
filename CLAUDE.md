@@ -11,8 +11,9 @@
 
 - **ユーザーへの返答・報告・質問はすべて日本語で書く**（つむぐと同じ）。
   コマンド・ファイル名・コードはそのままでよいが、説明の文は日本語にする。
-- `public/data/offices.json` と `data/rows/` は **手で書き換えない**。
-  `npm run data`（または GitHub Actions の「事業所データの更新」）で作る。
+- `public/data/*.json`（offices / history / areas）と `data/rows/`・`data/history/` は **手で書き換えない**。
+  `npm run data` / `npm run history` / `npm run population`（または GitHub Actions の「事業所データの更新」）で作る。
+  厚労省・WAM NET・e-Stat にはクラウドのセッションからはつながらないので、取り直しは GitHub Actions に任せる。
 - 検索・絞り込みの当たり判定は `src/lib/search-text.ts` の `searchKey` を通す。
   つむぐの `src/lib/domain/search-text.ts` の写しなので、変えるときは両方揃える。
 - 地図タイルなど外部ホストを足したら、`next.config.ts` の CSP にも足す。

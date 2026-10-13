@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { findAllMhlwLinks, findAllWamLinks, wamAsOf, ymFromText } from "../../../scripts/sources";
 import { computeGap, shortageRanking, type AreaCell } from "../areas";
 import { countSeries, periodChanges, type HistoryData } from "../history";
-import { meshBounds, meshCenter } from "../mesh";
+import { meshBounds, meshCenter, meshCodeAt } from "../mesh";
 
 test("メッシュ番号 → 緯度経度（1km・500m・250m）", () => {
   const b = meshBounds("53403546");
@@ -111,4 +111,13 @@ test("履歴：期間内の新規・サービス追加・なくなった・サ�
   const year = periodChanges(hist, center, 3, 12);
   assert.ok(year.some((c) => c.no === "3" && c.kind === "closed"));
   assert.equal(year.find((c) => c.no === "3")?.from, "2025-06");
+});
+
+test("緯度経度 → 500m メッシュ番号（中心から戻すと同じ番号）", () => {
+  for (const code of ["533935464", "534035461", "534035462", "534035463", "534035464", "533946171"]) {
+    const c = meshCenter(code);
+    assert.equal(meshCodeAt(c.lat, c.lng), code);
+  }
+  // 自社のあたり
+  assert.equal(meshCodeAt(35.657369, 140.066266).slice(0, 4), "5340");
 });

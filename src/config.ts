@@ -34,5 +34,12 @@ export const MAX_KM = 10;
 export const RADII = [1, 2, 3, 5, 10] as const;
 export const DEFAULT_RADIUS = 3;
 
+/** 需要と競合：各マスの中心から何 km 以内の人口と事業所を数えるか */
+export const GAP_RADIUS_KM = 2;
+
+/** 競合の動き：自社の近くで新しく載った事業所をお知らせする範囲（km）と、対象の種類（自社と同じサービス） */
+export const ALERT_RADIUS_KM = 2;
+export const ALERT_CATEGORIES = ["hh", "dv"] as const;
+
 /** 位置情報のない事業所でも、この区の住所なら一覧に残す */
 export const HOME_WARD = "千葉市花見川区";
