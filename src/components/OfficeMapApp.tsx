@@ -402,8 +402,11 @@ function OfficeDetail({ office: o, sameSpot, center }: { office: Row; sameSpot: 
             <button type="button" className={act} onClick={copyTel}>{copied ? "コピーしました" : "番号をコピー"}</button>
           </>
         )}
-        {o.url && /^https?:\/\//i.test(o.url) && (
+        {/* ホームページは公表データに載っているときだけ押せる。無いときは灰色で押せない */}
+        {o.url ? (
           <a className={act} target="_blank" rel="noopener" href={o.url}>ホームページ</a>
+        ) : (
+          <button type="button" disabled className={`${act} cursor-not-allowed opacity-45`}>ホームページなし</button>
         )}
       </div>
       {sameSpot > 1 && <p className="text-xs text-muted">この場所には、ほかに {sameSpot - 1} 件の事業所があります。一覧の前後を確認してください。</p>}

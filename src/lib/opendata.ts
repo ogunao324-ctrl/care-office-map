@@ -18,6 +18,7 @@ import {
   digitsOnly,
   distanceKm,
   normAddr,
+  normalizeUrl,
   type CategoryId,
   type LatLng,
   type Office,
@@ -315,7 +316,7 @@ export function mergeOffices(rows: OpenDataRow[], selfAddressKey: string): Offic
     if (!hit.corp && r.corp) hit.corp = r.corp;
     if (!hit.tel && r.tel) hit.tel = r.tel;
     if (!hit.fax && r.fax) hit.fax = r.fax;
-    if (!hit.url && r.url) hit.url = r.url;
+    if (!hit.url) hit.url = normalizeUrl(r.url) ?? undefined;
     if (!hit.days && r.days) hit.days = r.days;
     if (hit.lat == null && r.lat != null) {
       hit.lat = r.lat;

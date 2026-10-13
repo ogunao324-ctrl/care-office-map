@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { findMhlwLinks, findWamLinks } from "../../../scripts/sources";
 import { FALLBACK_CENTER, HOME_WARD, SELF_ADDRESS_KEY } from "../../config";
-import { categoryOf, normAddr } from "../offices";
+import { categoryOf, normAddr, normalizeUrl } from "../offices";
 import { decodeText, findSelf, mergeOffices, parseCSV, parseOpenData } from "../opendata";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "fixtures", name));
@@ -105,4 +105,28 @@ test("住所の列に建物名が入っていれば、方書を二重に付け�
   assert.equal(rows[1].address, "千葉県千葉市花見川区浪花町958-1 コーポ1F");
   assert.equal(rows[0].service, "訪問看護");
   assert.equal(findSelf(rows, "メゾンセレーザ")?.name, "A");
+});
+
+test("ホームページの URL を直す（崩れた書き方・メールアドレス）", () => {
+  const cases: [string, string | null][] = [
+    ["https://example.jp/", "https://example.jp/"],
+    ["https:www.example.org", "https://www.example.org/"],
+    ["https:/www.example.co.jp", "https://www.example.co.jp/"],
+    ["http:/www.example.co.jp", "http://www.example.co.jp/"],
+    ["https//www-example.co.jp", "https://www-example.co.jp/"],
+    ["htpps://www.example.com", "https://www.example.com/"],
+    ["ｈｔｔｐ://www.example.com", "http://www.example.com/"],
+    ["https：//www.example.co/", "https://www.example.co/"],
+    ["URL：http://www.mcp‐net.jp/", "http://www.mcp-net.jp/"],
+    [":https://example.com/", "https://example.com/"],
+    ["http://www．example．jp", "http://www.example.jp/"],
+    ["www.example.jp/", "http://www.example.jp/"],
+    ["example.com", "http://example.com/"],
+    ["ttp-care.jp", "http://ttp-care.jp/"],
+    ["info@example.com", null],
+    ["", null],
+    ["なし", null],
+    ["-", null],
+  ];
+  for (const [raw, want] of cases) assert.equal(normalizeUrl(raw), want, raw);
 });

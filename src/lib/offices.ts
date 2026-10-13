@@ -119,6 +119,34 @@ export function formatDistance(km: number | null): string {
   return `${km.toFixed(1)}km`;
 }
 
+/**
+ * 公表データの「URL」欄を、開けるホームページの URL に直す。開けないものは null。
+ *
+ * 事業所が手で入力した欄なので、次のような崩れ方が実際にある（2026-10 のデータで約30件）:
+ *   https:www.〜 / https:/www.〜 / https//〜 / htpps://〜 / 全角の ｈｔｔｐ・．・：
+ *   「URL：http://〜」 / 先頭に「:」 / http の無い「www.〜」「〜.com」
+ *   メールアドレス（info@〜）… これはホームページではないので null
+ */
+export function normalizeUrl(raw: string | null | undefined): string | null {
+  let s = String(raw ?? "")
+    .normalize("NFKC")
+    .replace(/[‐-―−]/g, "-")
+    .replace(/\s/g, "")
+    .replace(/^(url)?[:：]+/i, "");
+  if (!s || s === "-" || /^(なし|無し|無|未定)$/.test(s)) return null;
+  if (s.includes("@") && !s.includes("/")) return null;
+  s = s.replace(/^h?t+p+s?(?=[:;/])/i, (m) => (/s$/i.test(m) ? "https" : "http"));
+  const scheme = /^(https?)[:;]*\/*/i.exec(s);
+  s = scheme ? `${scheme[1].toLowerCase()}://${s.slice(scheme[0].length)}` : `http://${s.replace(/^\/+/, "")}`;
+  try {
+    const u = new URL(s);
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(u.hostname)) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function digitsOnly(s: string | null | undefined): string {
   return String(s ?? "").normalize("NFKC").replace(/\D/g, "");
 }
