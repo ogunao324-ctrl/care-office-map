@@ -24,7 +24,15 @@ import {
   SELF_ADDRESS_KEY,
   SELF_BUILDING_KEY,
 } from "../src/config";
-import { categoryOf, distanceKm, type DataSource, type OfficeData } from "../src/lib/offices";
+import {
+  categoryOf,
+  distanceKm,
+  KAIGO_SERVICE_CODE,
+  kaigoPageUrl,
+  type DataSource,
+  type Office,
+  type OfficeData,
+} from "../src/lib/offices";
 import { decodeText, findSelf, mergeOffices, parseOpenData, type OpenDataRow } from "../src/lib/opendata";
 import { findMhlwLinks, findWamLinks, listDataLinks, MHLW_PAGE, WAM_PAGE, type FoundLink } from "./sources";
 
@@ -224,6 +232,47 @@ async function rebuild(): Promise<OfficeData> {
   return { generatedAt: new Date().toISOString(), center, maxKm: MAX_KM, sources, offices };
 }
 
+/** 前回の offices.json に入っていた様式番号（取れなかったときはこれを使い続ける） */
+async function previousForms(): Promise<Record<string, string>> {
+  try {
+    const prev = JSON.parse(await readFile(OUT, "utf8")) as OfficeData;
+    return prev.kaigoDetailForms ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 介護サービス情報公表システムの「事業所の詳細」ページの様式番号を、サービスごとに読み取る。
+ * 各サービスの事業所を1件選んで「事業所の特色」ページ（様式番号なしで開ける）を開き、
+ * その中の「事業所の詳細」タブのリンク（action_kouhyou_detail_NNN_kihon）から NNN を拾う。
+ * 1回の更新でサービスごとに1〜3ページしか読まない。
+ */
+async function findDetailForms(offices: Office[], fallback: Record<string, string>): Promise<Record<string, string>> {
+  const forms: Record<string, string> = { ...fallback };
+  const pages = offices.flatMap((o) => o.kaigoPages ?? []);
+  for (const code of new Set(Object.values(KAIGO_SERVICE_CODE))) {
+    const samples = pages.filter((p) => p.code === code).slice(0, 3);
+    for (const p of samples) {
+      try {
+        const html = await fetchText(kaigoPageUrl(p));
+        const re = new RegExp(
+          `action_kouhyou_detail_(\\d{3})_kihon=true&(?:amp;)?JigyosyoCd=${p.number}-00&(?:amp;)?ServiceCd=${code}`,
+        );
+        const m = re.exec(html);
+        if (m) {
+          forms[code] = m[1];
+          break;
+        }
+      } catch (e) {
+        console.warn(`公表ページを読めませんでした（${p.service} ${p.number}）: ${String(e)}`);
+      }
+    }
+    console.log(`公表ページの様式番号: ${code} → ${forms[code] ?? "不明（事業所の特色ページを開きます）"}`);
+  }
+  return forms;
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.rebuild) {
@@ -237,6 +286,8 @@ async function main() {
     console.log(`${n} サービス分を data/rows/ に保存しました`);
   }
   const data = await rebuild();
+  const prevForms = await previousForms();
+  data.kaigoDetailForms = opts.rebuild ? prevForms : await findDetailForms(data.offices, prevForms);
   await mkdir(join(ROOT, "public", "data"), { recursive: true });
   await writeFile(OUT, JSON.stringify(data) + "\n");
   console.log(

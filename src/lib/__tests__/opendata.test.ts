@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { findMhlwLinks, findWamLinks } from "../../../scripts/sources";
 import { FALLBACK_CENTER, HOME_WARD, SELF_ADDRESS_KEY } from "../../config";
-import { categoryOf, normAddr, normalizeUrl } from "../offices";
+import { categoryOf, kaigoPageUrl, normAddr, normalizeUrl } from "../offices";
 import { decodeText, findSelf, mergeOffices, parseCSV, parseOpenData } from "../opendata";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "fixtures", name));
@@ -129,4 +129,21 @@ test("ホームページの URL を直す（崩れた書き方・メールアド
     ["-", null],
   ];
   for (const [raw, want] of cases) assert.equal(normalizeUrl(raw), want, raw);
+});
+
+test("介護の公表ページ: 事業所番号とサービス番号を持ち、様式番号が分かれば詳細ページを開く", () => {
+  const a = parseOpenData(decodeText(fx("jigyosho_110_sample.csv")), "jigyosho_110_sample.csv", opt).rows;
+  const b = parseOpenData(decodeText(fx("wam_sample.csv")), "wam_sample.csv", opt).rows;
+  const self = mergeOffices([...a, ...b], SELF_ADDRESS_KEY).find((o) => o.self);
+  // 障害の番号（1210200001）は介護の公表ページには使わない
+  assert.deepEqual(self?.kaigoPages, [{ service: "訪問介護", code: "110", number: "1270000001" }]);
+  const p = { service: "訪問看護", code: "130", number: "1260190123" };
+  assert.equal(
+    kaigoPageUrl(p),
+    "https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_feature_index=true&JigyosyoCd=1260190123-00&ServiceCd=130",
+  );
+  assert.equal(
+    kaigoPageUrl(p, { "130": "004" }),
+    "https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_004_kihon=true&JigyosyoCd=1260190123-00&ServiceCd=130",
+  );
 });

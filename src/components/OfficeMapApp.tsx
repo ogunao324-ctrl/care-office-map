@@ -19,6 +19,8 @@ import {
   categoryOf,
   categoryRecord,
   digitsOnly,
+  kaigoPageUrl,
+  WAM_SEARCH_URL,
   distanceKm,
   formatDistance,
   type CategoryId,
@@ -283,6 +285,7 @@ export function OfficeMapApp() {
                 open={o.id === selectedId}
                 sameSpot={o.id === selectedId ? sameSpot : 0}
                 center={center}
+                forms={data?.kaigoDetailForms}
                 onToggle={() => select(o.id)}
               />
             ))}
@@ -330,12 +333,14 @@ function OfficeRow({
   open,
   sameSpot,
   center,
+  forms,
   onToggle,
 }: {
   office: Row;
   open: boolean;
   sameSpot: number;
   center: { lat: number; lng: number } | null;
+  forms?: Record<string, string>;
   onToggle: () => void;
 }) {
   const both =
@@ -355,13 +360,36 @@ function OfficeRow({
         </span>
         <span className="col-span-2 break-words text-xs text-muted">{o.address}</span>
       </button>
-      {open && <OfficeDetail office={o} sameSpot={sameSpot} center={center} />}
+      {open && <OfficeDetail office={o} sameSpot={sameSpot} center={center} forms={forms} />}
     </li>
   );
 }
 
-function OfficeDetail({ office: o, sameSpot, center }: { office: Row; sameSpot: number; center: { lat: number; lng: number } | null }) {
+function OfficeDetail({
+  office: o,
+  sameSpot,
+  center,
+  forms,
+}: {
+  office: Row;
+  sameSpot: number;
+  center: { lat: number; lng: number } | null;
+  forms?: Record<string, string>;
+}) {
   const [copied, setCopied] = useState(false);
+  const [nameCopied, setNameCopied] = useState(false);
+  const hasShogai = o.categories.some((c) => c === "dv" || c === "cs");
+  // WAM NET は事業所ページへ直接行けないので、名前をコピーしてから検索の入口を開く
+  const copyName = () => {
+    try {
+      navigator.clipboard.writeText(o.name).then(
+        () => setNameCopied(true),
+        () => undefined,
+      );
+    } catch {
+      // コピーできない端末でも、リンクはそのまま開く
+    }
+  };
   const copyTel = async () => {
     if (!o.tel) return;
     try {
@@ -409,6 +437,30 @@ function OfficeDetail({ office: o, sameSpot, center }: { office: Row; sameSpot: 
           <button type="button" disabled className={`${act} cursor-not-allowed opacity-45`}>ホームページなし</button>
         )}
       </div>
+      {((o.kaigoPages?.length ?? 0) > 0 || hasShogai) && (
+        <div className="grid gap-1.5 rounded-lg bg-[#f3f5f2] p-2.5">
+          <p className="text-xs text-muted">公表ページ（従業者の数・決算書類などが見られます）</p>
+          <div className="flex flex-wrap gap-1.5">
+            {o.kaigoPages?.map((p) => (
+              <a key={p.code} className={`${act} bg-white`} target="_blank" rel="noopener" href={kaigoPageUrl(p, forms)}>
+                {o.kaigoPages && o.kaigoPages.length > 1 ? `介護の公表ページ（${p.service}）` : "介護の公表ページ"}
+              </a>
+            ))}
+            {hasShogai && (
+              <a className={`${act} bg-white`} target="_blank" rel="noopener" href={WAM_SEARCH_URL} onClick={copyName}>
+                障害の公表ページを探す
+              </a>
+            )}
+          </div>
+          {hasShogai && (
+            <p className="text-[11px] leading-relaxed text-muted">
+              {nameCopied
+                ? "事業所名をコピーしました。開いた検索画面の事業所名の欄に貼り付けてください。"
+                : "障害の公表ページ（WAM NET）は直接開けないため、事業所名をコピーして検索画面を開きます。"}
+            </p>
+          )}
+        </div>
+      )}
       {sameSpot > 1 && <p className="text-xs text-muted">この場所には、ほかに {sameSpot - 1} 件の事業所があります。一覧の前後を確認してください。</p>}
       {o.lat == null && <p className="text-xs text-muted">公表データに位置情報がないため、地図には出していません。</p>}
     </div>

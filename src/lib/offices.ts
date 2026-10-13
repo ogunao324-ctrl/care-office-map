@@ -70,7 +70,43 @@ export type Office = {
   days?: string;
   /** 自社 */
   self?: boolean;
+  /** 介護サービス情報公表システムの事業所ページを開くための番号（介護のサービスごと） */
+  kaigoPages?: KaigoPage[];
 };
+
+export type KaigoPage = { service: string; code: string; number: string };
+
+/** 介護サービス情報公表システムのサービス番号（URL の ServiceCd） */
+export const KAIGO_SERVICE_CODE: Record<string, string> = {
+  訪問介護: "110",
+  訪問看護: "130",
+  居宅介護支援: "430",
+};
+
+/**
+ * 介護サービス情報公表システムの事業所ページの URL。
+ *
+ * 「事業所の詳細」（従業者の数が載っているページ）の URL は
+ *   /12/index.php?action_kouhyou_detail_025_kihon=true&JigyosyoCd=1272901438-00&ServiceCd=210
+ * のように、サービスごとの様式番号（025 など）が入る。様式番号は制度改正で変わるので、
+ * データ更新のときに公表ページから読み取って offices.json の kaigoDetailForms に入れている。
+ * 分からないときは、様式番号の要らない「事業所の特色」ページ（そこから詳細・運営状況のタブへ行ける）を開く。
+ * 先頭の「12」は都道府県番号で、事業所番号の先頭2桁と同じ。
+ */
+export function kaigoPageUrl(p: KaigoPage, forms?: Record<string, string>): string {
+  const base = `https://www.kaigokensaku.mhlw.go.jp/${p.number.slice(0, 2)}/index.php`;
+  const q = `JigyosyoCd=${p.number}-00&ServiceCd=${p.code}`;
+  const form = forms?.[p.code];
+  return form && /^\d{3}$/.test(form)
+    ? `${base}?action_kouhyou_detail_${form}_kihon=true&${q}`
+    : `${base}?action_kouhyou_detail_feature_index=true&${q}`;
+}
+
+/**
+ * 障害福祉サービス等情報検索（WAM NET）。事業所ページの URL には公表データに無い
+ * 内部番号が要るので、直接は開けない（2026-10-13 に確認、番号だけだとエラーになる）。検索の入口を開く。
+ */
+export const WAM_SEARCH_URL = "https://www.wam.go.jp/sfkohyoout/";
 
 export type DataSource = {
   service: string;
@@ -90,6 +126,8 @@ export type OfficeData = {
   maxKm: number;
   sources: DataSource[];
   offices: Office[];
+  /** 介護サービス情報公表システムの「事業所の詳細」の様式番号（サービス番号 → 様式番号）。kaigoPageUrl 参照 */
+  kaigoDetailForms?: Record<string, string>;
 };
 
 /** 住所の表記ゆれを寄せる（全角数字・各種ハイフン・「番地」「号」など） */

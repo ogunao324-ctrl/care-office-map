@@ -17,6 +17,7 @@ import {
   CATEGORY_ORDER,
   digitsOnly,
   distanceKm,
+  KAIGO_SERVICE_CODE,
   normAddr,
   normalizeUrl,
   type CategoryId,
@@ -323,6 +324,12 @@ export function mergeOffices(rows: OpenDataRow[], selfAddressKey: string): Offic
       hit.lng = r.lng;
     }
     if (r.number && !hit.numbers.includes(r.number)) hit.numbers.push(r.number);
+    // 介護の公表ページを開くための番号（介護保険の事業所番号は10桁）
+    const code = KAIGO_SERVICE_CODE[r.service];
+    const num = digitsOnly(r.number);
+    if (code && /^\d{10}$/.test(num) && !hit.kaigoPages?.some((p) => p.code === code)) {
+      (hit.kaigoPages ??= []).push({ service: r.service, code, number: num });
+    }
     // 訪問系は定員が無いので「0」で入っていることが多い。意味が無いので出さない
     if (r.capacity && r.capacity !== "0") hit.capacity.push(`${r.service} ${r.capacity}人`);
     if (!hit.services.includes(r.service)) hit.services.push(r.service);
