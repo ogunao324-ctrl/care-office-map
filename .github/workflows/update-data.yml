@@ -1,0 +1,76 @@
+# 事業所データの更新
+#
+# 厚労省（介護）と WAM NET（障害）の公表データを取り直し、
+# 変わっていれば public/data/offices.json と data/rows/ をコミットする。
+# コミットされると Vercel が自動で公開し直す。
+#
+# いつ動くか
+#  - 自動：1・4・7・10月の20日と、2・5・8・11月の5日（公表が遅れたときの取り直し）の朝9時
+#    介護は 6月末・12月末時点が 7月・1月ごろ、障害は 3月末・9月末時点が 4月・10月ごろに出る
+#  - 手動：GitHub の Actions → 「事業所データの更新」→ Run workflow
+#    ページの作りが変わって自動で見つからないときは、CSV / ZIP の URL を貼って実行できる
+#  - スクリプトや設定を変えて main に push したとき
+
+name: 事業所データの更新
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "自動で見つからないときだけ：CSV / ZIP の URL（空白区切りで複数可）"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 0 20 1,4,7,10 *"
+    - cron: "0 0 5 2,5,8,11 *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "src/lib/opendata.ts"
+      - "src/config.ts"
+      - ".github/workflows/update-data.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 公表データを取得して offices.json を作る
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          if [ -n "$URLS" ]; then
+            npm run data -- --url "$URLS"
+          else
+            npm run data
+          fi
+
+      - name: 変わっていたらコミット
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/rows public/data/offices.json
+          if git diff --cached --quiet; then
+            echo "公表データに変更はありませんでした"
+            exit 0
+          fi
+          git commit -m "事業所データを更新（$(TZ=Asia/Tokyo date +%Y-%m-%d)）"
+          git pull --rebase origin main
+          git push origin HEAD:main
