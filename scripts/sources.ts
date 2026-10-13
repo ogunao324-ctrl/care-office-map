@@ -88,7 +88,7 @@ export function findWamLinks(html: string, base = WAM_PAGE): FoundLink[] {
         }
       }
     }
-    if (url) out.push({ label: target, url });
+    if (url) out.push({ label: target, url, asOf: wamAsOf(url) });
   }
   return out;
 }
@@ -96,4 +96,57 @@ export function findWamLinks(html: string, base = WAM_PAGE): FoundLink[] {
 /** ページ内の csv / zip のリンクを全部（拾えなかったときの手がかり用） */
 export function listDataLinks(html: string, base: string): string[] {
   return [...html.matchAll(/href="([^"]+\.(?:csv|zip)(?:\?[^"]*)?)"/gi)].map((m) => absolute(m[1], base));
+}
+
+/** 「2026年６月末時点」「2025年9月末」→ "2026-06"。読めなければ null */
+export function ymFromText(text: string): string | null {
+  const m = /(\d{4})\s*年\s*(\d{1,2})\s*月/.exec(text.normalize("NFKC"));
+  return m ? `${m[1]}-${m[2].padStart(2, "0")}` : null;
+}
+
+export type HistoryLink = { code: string; url: string; ym: string };
+
+/**
+ * 厚労省のページから、過去の時点も含めた全部のファイルを拾う（履歴用）。
+ * ファイル名は時点によってバラバラ（jigyosho_110.csv / 001528432.csv / …zip）なので、
+ * リンクの文字「110_訪問介護」と、直前の見出し「2026年６月末時点」で決める。
+ */
+export function findAllMhlwLinks(html: string, codes: readonly string[], base = MHLW_PAGE): HistoryLink[] {
+  const out: HistoryLink[] = [];
+  const tokens = [...html.matchAll(/<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>|<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+  let ym: string | null = null;
+  for (const t of tokens) {
+    if (t[1] != null) {
+      const y = ymFromText(stripTags(t[1]));
+      if (y && /時点/.test(stripTags(t[1]))) ym = y;
+      continue;
+    }
+    const href = t[2];
+    const text = squash(stripTags(t[3] ?? ""));
+    if (!ym || !/\.(csv|zip)(\?|$)/i.test(href)) continue;
+    const code = codes.find((c) => text.startsWith(`${c}_`));
+    if (!code) continue;
+    if (out.some((o) => o.ym === ym && o.code === code)) continue;
+    out.push({ code, url: absolute(href, base), ym });
+  }
+  return out;
+}
+
+/** WAM NET のページから、過去の時点も含めた全部のファイルを拾う（sfkopendata_202603_11.zip の 202603 と 11） */
+export function findAllWamLinks(html: string, codes: readonly string[], base = WAM_PAGE): HistoryLink[] {
+  const out: HistoryLink[] = [];
+  for (const m of html.matchAll(/href="([^"]*sfkopendata_(\d{4})(\d{2})_(\d{2})\.zip)"/gi)) {
+    const [, href, y, mo, code] = m;
+    if (!codes.includes(code)) continue;
+    const ym = `${y}-${mo}`;
+    if (out.some((o) => o.ym === ym && o.code === code)) continue;
+    out.push({ code, url: absolute(href, base), ym });
+  }
+  return out;
+}
+
+/** WAM NET のファイルの URL から時点を読む（最新の取り込みで「2026年3月末時点」と出すため） */
+export function wamAsOf(url: string): string | undefined {
+  const m = /sfkopendata_(\d{4})(\d{2})_\d{2}\.zip/.exec(url);
+  return m ? `${m[1]}年${Number(m[2])}月末時点` : undefined;
 }

@@ -41,7 +41,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -62,11 +62,22 @@ jobs:
             npm run data
           fi
 
+      - name: 過去の公表データから競合の動き（履歴）を作る
+        # 取ったことのある時点は data/history/ に残っているので、新しい時点だけ取りに行く
+        run: npm run history
+
+      - name: 国勢調査の人口（areas.json が無いときだけ）
+        # 国勢調査は5年に1度。作り直したいときは areas.json を消して push する
+        run: |
+          if [ ! -f public/data/areas.json ]; then
+            npm run population
+          fi
+
       - name: 変わっていたらコミット
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/rows public/data/offices.json
+          git add data public/data
           if git diff --cached --quiet; then
             echo "公表データに変更はありませんでした"
             exit 0

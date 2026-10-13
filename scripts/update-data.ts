@@ -16,7 +16,6 @@
 
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import JSZip from "jszip";
 import {
   FALLBACK_CENTER,
   HOME_WARD,
@@ -34,12 +33,12 @@ import {
   type OfficeData,
 } from "../src/lib/offices";
 import { decodeText, findSelf, mergeOffices, parseOpenData, type OpenDataRow } from "../src/lib/opendata";
+import { download, expand, fetchText, type Input } from "./net";
 import { findMhlwLinks, findWamLinks, listDataLinks, MHLW_PAGE, WAM_PAGE, type FoundLink } from "./sources";
 
 const ROOT = join(import.meta.dirname, "..");
 const ROWS_DIR = join(ROOT, "data", "rows");
 const OUT = join(ROOT, "public", "data", "offices.json");
-const UA = "Mozilla/5.0 (care-office-map data updater)";
 
 /** サービス名 → 保存ファイル名 */
 const SLUG: Record<string, string> = {
@@ -73,8 +72,6 @@ type RowsFile = {
   rows: OpenDataRow[];
 };
 
-type Input = { name: string; bytes: Uint8Array; url?: string; asOf?: string };
-
 function parseArgs(argv: string[]) {
   const files: string[] = [];
   const urls: string[] = [];
@@ -88,41 +85,6 @@ function parseArgs(argv: string[]) {
     else if (a === "--rebuild") rebuild = true;
   }
   return { files, urls, onlyFiles, rebuild };
-}
-
-async function download(url: string): Promise<Uint8Array> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, { headers: { "User-Agent": UA } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return new Uint8Array(await res.arrayBuffer());
-    } catch (e) {
-      lastErr = e;
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-  }
-  throw new Error(`${url} を取得できませんでした: ${String(lastErr)}`);
-}
-
-async function fetchText(url: string): Promise<string> {
-  return decodeText(await download(url));
-}
-
-async function expand(input: Input): Promise<Input[]> {
-  const b = input.bytes;
-  if (b[0] === 0x50 && b[1] === 0x4b) {
-    const zip = await JSZip.loadAsync(b);
-    const out: Input[] = [];
-    for (const name of Object.keys(zip.files)) {
-      const f = zip.files[name];
-      if (f.dir || !/\.csv$/i.test(name)) continue;
-      out.push({ name: basename(name), bytes: await f.async("uint8array"), url: input.url, asOf: input.asOf });
-    }
-    if (!out.length) throw new Error(`${input.name}: ZIP の中に CSV がありません`);
-    return out;
-  }
-  return [input];
 }
 
 async function collectInputs(opts: ReturnType<typeof parseArgs>): Promise<Input[]> {
