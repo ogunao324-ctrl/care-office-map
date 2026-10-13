@@ -12,8 +12,8 @@
 export const MHLW_PAGE = "https://www.mhlw.go.jp/stf/kaigo-kouhyou_opendata.html";
 export const WAM_PAGE = "https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/";
 
-/** 厚労省から取るサービス（ファイル名の先頭の番号） */
-export const MHLW_TARGETS = ["110", "430"] as const;
+/** 厚労省から取るサービス（リンクの文字の先頭の番号）。110 訪問介護・130 訪問看護・430 居宅介護支援 */
+export const MHLW_TARGETS = ["110", "130", "430"] as const;
 
 /** WAM NET から取るサービス（表のマスの文字と完全一致で探す） */
 export const WAM_TARGETS = ["居宅介護", "重度訪問介護", "同行援護", "行動援護", "計画相談支援", "障害児相談支援"] as const;

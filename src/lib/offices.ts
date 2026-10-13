@@ -5,17 +5,23 @@
 export type LatLng = { lat: number; lng: number };
 
 /** サービスの大きな分類。地図の点の色と、絞り込みのボタンに使う */
-export type CategoryId = "cm" | "hh" | "dv" | "cs" | "ot";
+export type CategoryId = "cm" | "hh" | "vn" | "dv" | "cs" | "ot";
 
 export const CATEGORIES: { id: CategoryId; name: string; color: string; group: "介護" | "障害" | "" }[] = [
   { id: "cm", name: "居宅介護支援", color: "#2f56c6", group: "介護" },
   { id: "hh", name: "訪問介護", color: "#d4531a", group: "介護" },
+  { id: "vn", name: "訪問看護", color: "#a87400", group: "介護" },
   { id: "dv", name: "障害 訪問系", color: "#2c8a43", group: "障害" },
   { id: "cs", name: "相談支援", color: "#9c3bb5", group: "障害" },
   { id: "ot", name: "その他", color: "#7a837f", group: "" },
 ];
 
-export const CATEGORY_ORDER: CategoryId[] = ["cm", "hh", "dv", "cs", "ot"];
+export const CATEGORY_ORDER: CategoryId[] = ["cm", "hh", "vn", "dv", "cs", "ot"];
+
+/** 絞り込みの初期状態（全部表示）と、件数の入れ物 */
+export function categoryRecord<T>(value: T): Record<CategoryId, T> {
+  return { cm: value, hh: value, vn: value, dv: value, cs: value, ot: value };
+}
 
 export function categoryColor(id: CategoryId): string {
   return CATEGORIES.find((c) => c.id === id)?.color ?? "#7a837f";
@@ -31,6 +37,8 @@ export function categoryOf(service: string): CategoryId {
   if (/居宅介護支援|介護予防支援/.test(s)) return "cm";
   if (/重度訪問介護|同行援護|行動援護|重度障害者等包括支援/.test(s)) return "dv";
   if (/相談支援/.test(s)) return "cs";
+  // 「定期巡回・随時対応型訪問介護看護」は訪問介護の側に入れる（下の訪問介護で拾う）
+  if (/訪問看護/.test(s)) return "vn";
   if (/訪問介護/.test(s)) return "hh";
   if (/居宅介護/.test(s)) return "dv";
   return "ot";

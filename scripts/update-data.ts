@@ -35,6 +35,7 @@ const UA = "Mozilla/5.0 (care-office-map data updater)";
 /** サービス名 → 保存ファイル名 */
 const SLUG: Record<string, string> = {
   訪問介護: "kaigo-homon-kaigo",
+  訪問看護: "kaigo-homon-kango",
   居宅介護支援: "kaigo-kyotaku-shien",
   居宅介護: "shogai-kyotaku-kaigo",
   重度訪問介護: "shogai-judo-homon",

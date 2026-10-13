@@ -17,6 +17,7 @@ import {
   CATEGORIES,
   categoryColor,
   categoryOf,
+  categoryRecord,
   digitsOnly,
   distanceKm,
   formatDistance,
@@ -33,7 +34,7 @@ const OfficeMap = dynamic(() => import("./OfficeMap").then((m) => m.OfficeMap), 
 
 const PAGE = 150;
 const RADIUS_KEY = "care-office-map:radius";
-const ALL_ON: Record<CategoryId, boolean> = { cm: true, hh: true, dv: true, cs: true, ot: true };
+const ALL_ON: Record<CategoryId, boolean> = categoryRecord(true);
 
 type Row = MapOffice & { key: string };
 
@@ -88,7 +89,7 @@ export function OfficeMapApp() {
   const { visible, counts } = useMemo(() => {
     const q = searchKey(query.trim()).replace(/\s/g, "");
     const qDigits = digitsOnly(query);
-    const counts: Record<CategoryId, number> = { cm: 0, hh: 0, dv: 0, cs: 0, ot: 0 };
+    const counts: Record<CategoryId, number> = categoryRecord(0);
     const visible: Row[] = [];
     for (const o of rows) {
       const inRange = o.distance != null ? o.distance <= radius + 1e-9 : true;
@@ -337,7 +338,8 @@ function OfficeRow({
   center: { lat: number; lng: number } | null;
   onToggle: () => void;
 }) {
-  const both = o.categories.some((c) => c === "cm" || c === "hh") && o.categories.some((c) => c === "dv" || c === "cs");
+  const both =
+    o.categories.some((c) => c === "cm" || c === "hh" || c === "vn") && o.categories.some((c) => c === "dv" || c === "cs");
   return (
     <li id={`row-${o.id}`} className={`rounded-lg border bg-white ${open ? "border-accent ring-1 ring-accent" : "border-rule"}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} className="grid w-full grid-cols-[1fr_auto] gap-x-2.5 gap-y-0.5 px-3 py-2.5 text-left">

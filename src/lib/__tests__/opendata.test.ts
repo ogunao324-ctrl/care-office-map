@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { findMhlwLinks, findWamLinks } from "../../../scripts/sources";
 import { FALLBACK_CENTER, HOME_WARD, SELF_ADDRESS_KEY } from "../../config";
-import { normAddr } from "../offices";
+import { categoryOf, normAddr } from "../offices";
 import { decodeText, findSelf, mergeOffices, parseCSV, parseOpenData } from "../opendata";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "fixtures", name));
@@ -69,6 +69,7 @@ test("厚労省のページ: いちばん新しい時点のリンクと時点を
     links.map((l) => [l.label, l.url, l.asOf]),
     [
       ["110_訪問介護", "https://www.mhlw.go.jp/content/12300000/jigyosho_110_all_20260709180319.csv", "2026年６月末時点"],
+      ["130_訪問看護", "https://www.mhlw.go.jp/content/12300000/jigyosho_130_all_20260709180342.csv", "2026年６月末時点"],
       ["430_居宅介護支援", "https://www.mhlw.go.jp/content/12300000/jigyosho_430_all_20260709180740.csv", "2026年６月末時点"],
     ],
   );
@@ -81,4 +82,14 @@ test("WAM NET のページ: サービス名のマス・画像の alt からリ�
     ["居宅介護", "重度訪問介護", "同行援護", "計画相談支援", "障害児相談支援"],
   );
   assert.ok(links.every((l) => l.url.startsWith("https://www.wam.go.jp/content/files/")));
+});
+
+test("サービス名の分類（似た名前を取り違えない）", () => {
+  assert.equal(categoryOf("訪問看護"), "vn");
+  assert.equal(categoryOf("訪問介護"), "hh");
+  assert.equal(categoryOf("定期巡回・随時対応型訪問介護看護"), "hh");
+  assert.equal(categoryOf("居宅介護支援"), "cm");
+  assert.equal(categoryOf("居宅介護"), "dv");
+  assert.equal(categoryOf("重度訪問介護"), "dv");
+  assert.equal(categoryOf("障害児相談支援"), "cs");
 });
