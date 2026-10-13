@@ -1,0 +1,191 @@
++ mkdir -p out
++ cd out
++ UA='Mozilla/5.0 (care-office-map probe)'
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o mhlw.html https://www.mhlw.go.jp/stf/kaigo-kouhyou_opendata.html
++ ls -la mhlw.html
+-rw-r--r-- 1 runner runner 122680 Oct 13 14:30 mhlw.html
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o wam.html https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/
++ ls -la wam.html
+-rw-r--r-- 1 runner runner 294411 Oct 13 14:30 wam.html
++ grep -o 'href="[^"]*\.\(zip\|csv\)[^"]*"' wam.html
++ head -80
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_11.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_12.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_15.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_13.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_14.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_21.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_22.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_24.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_32.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_33.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_61.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_41.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_42.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_34.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_60.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_45.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_46.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_62.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_63.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_64.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_65.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_66.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_67.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_68.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_69.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_53.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_54.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_52.zip"
+href="/content/files/pcpub/top/sfkopendata/202603/sfkopendata_202603_70.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_11.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_12.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_15.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_13.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_14.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_21.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_22.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_24.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_32.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_33.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_61.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_41.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_42.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_34.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_60.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_45.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_46.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_62.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_63.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_64.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_65.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_66.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_67.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_68.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_69.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_53.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_54.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_52.zip"
+href="/content/files/pcpub/top/sfkopendata/202509/sfkopendata_202509_70.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_11.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_12.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_15.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_13.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_14.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_21.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_22.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_24.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_32.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_33.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_61.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_41.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_42.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_34.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_60.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_45.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_46.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_62.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_63.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_64.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_65.zip"
+href="/content/files/pcpub/top/sfkopendata/202503/sfkopendata_202503_66.zip"
+grep: write error: Broken pipe
++ grep -n -i -E '時点|年度|過去|バックナンバー|アーカイブ' wam.html
++ head -40
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o b.zip 'https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=12&coordSys=1&format=shape&downloadType=5&datum=2000'
++ ls -la b.zip
+-rw-r--r-- 1 runner runner 10202357 Oct 13 14:30 b.zip
++ file b.zip
+b.zip: Zip archive data, at least v2.0 to extract, compression method=deflate
++ unzip -l b.zip
++ head -20
+Archive:  b.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+    53524  2022-06-23 04:17   r2ka12.shx
+  1944260  2022-06-23 04:17   r2ka12.dbf
+      147  2022-06-23 04:17   r2ka12.prj
+ 16446436  2022-06-23 04:17   r2ka12.shp
+---------                     -------
+ 18444367                     4 files
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o t.zip 'https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001102&code=12&downloadType=2'
++ ls -la t.zip
+-rw-r--r-- 1 runner runner 1653729 Oct 13 14:30 t.zip
++ file t.zip
+t.zip: Zip archive data, at least v2.0 to extract, compression method=deflate
++ unzip -l t.zip
++ head
+Archive:  t.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+  6278621  2025-09-16 15:49   tblT001102Q12.txt
+---------                     -------
+  6278621                     1 file
++ mkdir -p t
++ cd t
++ unzip -o -q ../t.zip
++ for f in t/*
++ echo '== t/tblT001102Q12.txt'
+== t/tblT001102Q12.txt
++ iconv -f CP932 -t UTF-8 t/tblT001102Q12.txt
++ head -4
++ cut -c1-1500
+KEY_CODE,HTKSYORI,HTKSAKI,GASSAN,T001102001,T001102002,T001102003,T001102004,T001102005,T001102006,T001102007,T001102008,T001102009,T001102010,T001102011,T001102012,T001102013,T001102014,T001102015,T001102016,T001102017,T001102018,T001102019,T001102020,T001102021,T001102022,T001102023,T001102024,T001102025,T001102026,T001102027,T001102028,T001102029,T001102030,T001102031,T001102032,T001102033,T001102034,T001102035,T001102036,T001102037,T001102038,T001102039,T001102040,T001102041,T001102042,T001102043,T001102044,T001102045,T001102046,T001102047,T001102048,T001102049,T001102050
+,,,,　人口（総数）,　人口（総数）　男,　人口（総数）　女,　０～１４歳人口　総数,　０～１４歳人口　男,　０～１４歳人口　女,　１５歳以上人口　総数,　１５歳以上人口　男,　１５歳以上人口　女,　１５～６４歳人口　総数,　１５～６４歳人口　男,　１５～６４歳人口　女,　１８歳以上人口　総数,　１８歳以上人口　男,　１８歳以上人口　女,　２０歳以上人口　総数,　２０歳以上人口　男,　２０歳以上人口　女,　６５歳以上人口　総数,　６５歳以上人口　男,　６５歳以上人口　女,　７５歳以上人口　総数,　７５歳以上人口　男,　７５歳以上人口　女,　８５歳以上人口　総数,　８５歳以上人口　男,　８５歳以上人口　女,　９５歳以上人口　総数,　９５歳以上人口　男,　９５歳以上人口　女,　外国人人口　総数,　外国人人口　男,　外国人人口　女,　世帯総数,　一般世帯数,　１人世帯数　一般世帯数,　２人世帯数　一般世帯数,　３人世帯数　一般世帯数,　４人世帯数　一般世帯数,　５人世帯数　一般世帯数,　６人世帯数　一般世帯数,　７人以上世帯数　一般世帯数,　親族のみの世帯数　一般世帯数,　核家族世帯数　一般世帯数,　核家族以外の世帯数　一般世帯数,　６歳未満世帯員のい�
+5239268643,2,5239269621,,9,5,4,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,4,4,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*
+5239268644,2,5239269621,,1,1,0,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,1,1,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*
+iconv: conversion stopped due to problem in writing the output
++ iconv -f CP932 -t UTF-8 t/tblT001102Q12.txt
++ grep -n 浪花町
++ head -3
++ cut -c1-600
++ mkdir -p b
++ cd b
++ unzip -o -q ../b.zip
++ ls -la b
+total 18032
+drwxr-xr-x 2 runner runner     4096 Oct 13 14:30 .
+drwxr-xr-x 4 runner runner     4096 Oct 13 14:30 ..
+-rw-r--r-- 1 runner runner  1944260 Jun 23  2022 r2ka12.dbf
+-rw-r--r-- 1 runner runner      147 Jun 23  2022 r2ka12.prj
+-rw-r--r-- 1 runner runner 16446436 Jun 23  2022 r2ka12.shp
+-rw-r--r-- 1 runner runner    53524 Jun 23  2022 r2ka12.shx
++ python3 -
+b/r2ka12.dbf 6678 records [('KEY_CODE', 'C', 11), ('PREF', 'C', 2), ('CITY', 'C', 3), ('S_AREA', 'C', 6), ('PREF_NAME', 'C', 12), ('CITY_NAME', 'C', 16), ('S_NAME', 'C', 96), ('KIGO_E', 'C', 3), ('HCODE', 'N', 4), ('AREA', 'N', 15), ('PERIMETER', 'N', 15), ('R2KAxx', 'N', 6), ('R2KAxx_ID', 'N', 6), ('KIHON1', 'C', 4), ('DUMMY1', 'C', 1), ('KIHON2', 'C', 2), ('KEYCODE1', 'C', 9), ('KEYCODE2', 'C', 9), ('AREA_MAX_F', 'C', 1), ('KIGO_D', 'C', 2), ('N_KEN', 'C', 2), ('N_CITY', 'C', 3), ('KIGO_I', 'C', 1), ('KBSUM', 'N', 4), ('JINKO', 'N', 10), ('SETAI', 'N', 10), ('X_CODE', 'N', 15), ('Y_CODE', 'N', 15), ('KCODE1', 'C', 7)]
+['121010010', '12', '101', '001000', '千葉県', '千葉市中央区', '青葉町', '', '8101', '842588.023', '4381.888', '1', '0', '0010', '-', '00', '101001000', '1010010', 'M', '', '', '', '', '45', '2671', '1042', '140.139806', '35.596708', '0010-00']
+['121010020', '12', '101', '002000', '千葉県', '千葉市中央区', '赤井町', '', '8101', '1376645.540', '7079.263', '2', '1', '0020', '-', '00', '101002000', '1010020', 'M', '', '', '', '', '19', '1811', '594', '140.161263', '35.571644', '0020-00']
+['121010030', '12', '101', '003000', '千葉県', '千葉市中央区', '旭町', '', '8101', '102837.597', '1436.000', '3', '2', '0030', '-', '00', '101003000', '1010030', 'M', '', '', '', '', '30', '1054', '563', '140.134230', '35.608092', '0030-00']
+GEOGCS["GCS_JGD_2000",DATUM["D_JGD_2000",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]
+
++ rm -rf b t b.zip t.zip
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o old.zip https://www.mhlw.go.jp/content/12300000/2020.12jigyosho_110_all_20210122205653.zip
++ ls -la old.zip
+-rw-r--r-- 1 runner runner 3548167 Oct 13 14:30 old.zip
++ unzip -l old.zip
++ head
+Archive:  old.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+ 14925192  2022-11-08 16:48   2020.12jigyosho_110_all_20210122205653.csv
+---------                     -------
+ 14925192                     1 file
++ mkdir -p o
++ cd o
++ unzip -o -q ../old.zip
++ for f in o/*
++ echo '== o/2020.12jigyosho_110_all_20210122205653.csv'
+== o/2020.12jigyosho_110_all_20210122205653.csv
++ head -c 600 o/2020.12jigyosho_110_all_20210122205653.csv
++ iconv -f UTF-8 -t UTF-8
++ head -3
+﻿都道府県コード又は市町村コード,No,都道府県名,市区町村名,事業所名,事業所名カナ,サービスの種類,住所,方書（ビル名等）,緯度,経度,電話番号,FAX番号,法人番号,法人の名称,事業所番号,利用可能曜日,利用可能曜日特記事項,定員,URL,高齢者の方と障害者の方が同時一体的に利用できるサービス,介護保険の通常の指定基準を満たしている,障害福祉の通常の指定基準を満たしている,備考
+011037,0170202881,北海道,札幌市東区,ヘルパーステーション　楽iconv: incomplete character or shift sequence at end of buffer
++ file o/2020.12jigyosho_110_all_20210122205653.csv
+o/2020.12jigyosho_110_all_20210122205653.csv: CSV Unicode text, UTF-8 (with BOM) text
++ rm -rf o old.zip
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o new.csv https://www.mhlw.go.jp/content/12300000/jigyosho_130_all_20260709180342.csv
++ head -2 new.csv
++ cut -c1-800
+﻿都道府県コード又は市町村コード,No,都道府県名,市区町村名,事業所名,事業所名カナ,サービスの種類,住所,方書（ビル名等）,緯度,経度,電話番号,FAX番号,法人番号,法人の名称,事業所番号,利用可能曜日,利用可能曜日特記事項,定員,URL,高齢者の方と障害者の方が同時一体的に利用できるサービス,介護保険の通常の指定基準を満たしている,障害福祉の通常の指定基準を満たしている,備考
+011011,0110611845,北海道,札幌市中央区,札幌ススキノ病院,サッポロススキノビョウイン,訪問看護,北海道札幌市中央区南6条西8丁目5番地,,43.052625000000000,141.346770000000000,011-512-2000,011-512-2001,1430005001478,医療法人大空,0110611845,"平日,土曜日,日曜日,祝日",,,http://www.zion-g.jp/susukino/,,,,
++ rm -f new.csv
