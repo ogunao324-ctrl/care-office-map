@@ -322,7 +322,8 @@ export function mergeOffices(rows: OpenDataRow[], selfAddressKey: string): Offic
       hit.lng = r.lng;
     }
     if (r.number && !hit.numbers.includes(r.number)) hit.numbers.push(r.number);
-    if (r.capacity) hit.capacity.push(`${r.service} ${r.capacity}`);
+    // 訪問系は定員が無いので「0」で入っていることが多い。意味が無いので出さない
+    if (r.capacity && r.capacity !== "0") hit.capacity.push(`${r.service} ${r.capacity}人`);
     if (!hit.services.includes(r.service)) hit.services.push(r.service);
     const cat = categoryOf(r.service);
     if (!hit.categories.includes(cat)) hit.categories.push(cat);
