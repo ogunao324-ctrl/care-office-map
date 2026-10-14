@@ -674,7 +674,7 @@ export function OfficeMapApp() {
       <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
         {mode === "list" && (
           <>
-            <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3 lg:min-w-[320px] lg:flex-1">
+            <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3 lg:w-[400px] lg:flex-none">
               <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" />
                 <path d="m20 20-3.5-3.5" />
@@ -703,7 +703,7 @@ export function OfficeMapApp() {
           </>
         )}
         {mode !== "list" && (
-          <div className={`${searchOpen ? "" : "hidden"} lg:block lg:min-w-[320px] lg:flex-1`}>
+          <div className={`${searchOpen ? "" : "hidden"} lg:block lg:w-[400px] lg:flex-none`}>
             <SearchJump rows={rows} onPick={openOffice} autoFocus={searchOpen} />
           </div>
         )}
