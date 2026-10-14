@@ -51,6 +51,8 @@ export type MapPoint = {
   color: string;
   /** normal：塗り＋白い縁 / new：塗り＋濃い縁 / gone：白抜きの灰色 / muted：小さな薄い灰色（背景として見せるだけ） */
   style?: "normal" | "new" | "gone" | "muted";
+  /** 点の大きさの倍率（体制比較で利用者数に合わせる）。無ければ 1 */
+  scale?: number;
 };
 
 export type CellOverlay = { code: string; color: string; opacity: number };
@@ -315,11 +317,12 @@ export function OfficeMap({
     }
     let selected: MapPoint | null = null;
     // 薄い灰色・載らなくなった（白抜き）を先に描き、塗りの点を上に重ねる
+    // 大きい点を先に描き、小さい点が隠れないようにする
     const back = (g: MapPoint[]) => (g[0].style === "muted" ? 2 : g[0].style === "gone" ? 1 : 0);
-    const ordered = [...groups.values()].sort((a, b) => back(b) - back(a));
+    const ordered = [...groups.values()].sort((a, b) => back(b) - back(a) || (b[0].scale ?? 1) - (a[0].scale ?? 1));
     for (const g of ordered) {
       const p = g[0];
-      const size = r + (g.length > 1 ? 1 : 0);
+      const size = r * (p.scale ?? 1) + (g.length > 1 ? 1 : 0);
       const opts: Leaflet.CircleMarkerOptions =
         p.style === "muted"
           ? { renderer, radius: Math.max(3, size - 1.5), fillColor: "#a3aca6", fillOpacity: 0.85, color: "#ffffff", weight: 1 }
@@ -338,7 +341,7 @@ export function OfficeMap({
     if (selected) {
       L.circleMarker([selected.lat, selected.lng], {
         renderer,
-        radius: r + 6,
+        radius: r * ((selected as MapPoint).scale ?? 1) + 6,
         weight: 3,
         fill: false,
         color: "#1d5d66",

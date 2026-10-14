@@ -4,6 +4,7 @@
  * 「需要と競合」の地図の下に出すもの：自社のまわりのまとめ・選んだマス・凡例・足りない町のランキング
  */
 
+import type { ReactNode } from "react";
 import { COUNT_COLORS, DEMAND_LABEL, SHORTAGE_STEPS, type DemandBase, type GapCell, type GapResult } from "@/lib/areas";
 import { CATEGORIES, formatDistance, type CategoryId } from "@/lib/offices";
 import { GAP_RADIUS_KM } from "@/config";
@@ -44,6 +45,7 @@ export function GapPanel({
   selectedCell,
   breaks,
   onPickCell,
+  extra,
 }: {
   gap: GapResult | null;
   error: string | null;
@@ -56,6 +58,8 @@ export function GapPanel({
   selectedCell: GapCell | null;
   breaks: number[];
   onPickCell: (code: string) => void;
+  /** 凡例のあとに出すもの（営業先のおすすめ） */
+  extra?: ReactNode;
 }) {
   const catName = CATEGORIES.find((c) => c.id === category)?.name ?? "";
   if (error) return <Note title="人口のデータを読み込めませんでした">通信状態を確認して、開き直してください。（{error}）</Note>;
@@ -115,6 +119,8 @@ export function GapPanel({
           </p>
         )}
       </section>
+
+      {extra}
 
       <section className="grid gap-1.5" aria-label="事業所が足りない町">
         <div className="flex items-baseline justify-between px-0.5">

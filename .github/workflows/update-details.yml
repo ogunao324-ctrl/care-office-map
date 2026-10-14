@@ -1,0 +1,75 @@
+# 公表ページ（事業所の詳細）の取得
+#
+# 介護サービス情報公表システムの「事業所の詳細」ページから、訪問介護・訪問看護・居宅介護支援の
+# 職員数・利用者数・加算を読み取り、public/data/details.json を作る（「体制比較」の画面で使う）。
+# 取ったものは data/details/ に残し、150日たつまでは取り直さない。
+#
+# 相手のサイトに負担をかけないよう、1ページずつ数秒おきに取る（900ページで1時間ほど）。
+# 110分で区切り、残りは次の実行で取る。
+#
+# いつ動くか
+#  - 自動：3月・9月の10日の朝10時（年2回）
+#  - 手動：GitHub の Actions → 「公表ページの詳細の取得」→ Run workflow
+#  - このファイルか取得スクリプトを変えて main に push したとき（足りない分だけ取る）
+
+name: 公表ページの詳細の取得
+
+on:
+  workflow_dispatch:
+    inputs:
+      refetch:
+        description: "全部取り直す（読み取り方を直したときだけ）"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 1 10 3,9 *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update-details.ts"
+      - ".github/workflows/update-details.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-details
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 詳細ページを取得して details.json を作る
+        env:
+          REFETCH: ${{ inputs.refetch }}
+        run: |
+          if [ "$REFETCH" = "true" ]; then
+            npm run details -- --minutes 110 --refetch
+          else
+            npm run details -- --minutes 110
+          fi
+
+      - name: 変わっていたらコミット
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/details public/data/details.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "変更はありませんでした"
+            exit 0
+          fi
+          git commit -m "公表ページの詳細を更新（$(TZ=Asia/Tokyo date +%Y-%m-%d)）"
+          git pull --rebase origin main
+          git push origin HEAD:main

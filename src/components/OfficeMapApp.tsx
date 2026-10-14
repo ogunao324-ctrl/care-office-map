@@ -3,11 +3,13 @@
 /**
  * 画面全体
  *
- * 3つの見方を上のタブで切り替える。地図は共通で、見方ごとに描くものが変わる。
+ * 5つの見方を上のタブで切り替える。地図は共通で、見方ごとに描くものが変わる。
  *  - 事業所をさがす：検索・絞り込み → 地図 → 自社から近い順の一覧
  *  - 需要と競合　　：500m 四方のマスを「事業所の足りなさ」か「人数」で色分けし、足りない町を並べる
  *  - 競合の動き　　：期間内に新しく載った／載らなくなった事業所と、数の推移
  *  - 法人の勢力　　：事業所を法人ごとにまとめ、事業所の多い法人・法人の種類・大手の強さを出す
+ *  - 体制比較　　　：公表ページ（事業所の詳細）の職員・利用者・加算を、範囲内の同じサービスで比べる
+ *  需要と競合には「営業先のおすすめ」（足りない場所の居宅介護支援・相談支援）も出す
  *
  * スマホ：上に操作、その下に地図、残りが一覧などの中身。PC（幅1024px〜）：左に中身、右に地図。
  *
@@ -15,6 +17,7 @@
  *  - offices.json … 今の事業所（scripts/update-data.ts）
  *  - areas.json   … 国勢調査の人口（scripts/update-population.ts）。「需要と競合」を開いたときに読む
  *  - history.json … 過去の公表データ（scripts/update-history.ts）。お知らせに使うので最初に裏で読む
+ *  - details.json … 公表ページの詳細（scripts/update-details.ts）。詳細欄・体制比較・営業先で使うので裏で読む
  */
 
 import dynamic from "next/dynamic";
@@ -34,11 +37,26 @@ import { periodChanges, ymLabel, type Change, type HistoryData } from "@/lib/his
 import { meshCodeAt } from "@/lib/mesh";
 import { CATEGORIES, categoryColor, categoryRecord, digitsOnly, distanceKm, type CategoryId, type OfficeData } from "@/lib/offices";
 import { corpKeyOf, corpLandscape } from "@/lib/corps";
+import {
+  COMPARE_CATS,
+  detailOf,
+  isStale,
+  METRIC_LABEL,
+  metricOf,
+  metricsFor,
+  rankOf,
+  usersOf,
+  type CompareCat,
+  type DetailsData,
+  type MetricId,
+} from "@/lib/details";
 import { searchKey } from "@/lib/search-text";
 import { GapPanel, type ColorMode } from "./GapPanel";
 import type { CellOverlay, MapPoint } from "./OfficeMap";
-import { AboutData, OfficeRow, type Row } from "./OfficeList";
+import { AboutData, OfficeRow, type RankFor, type Row } from "./OfficeList";
+import { ComparePanel, type CompareItem } from "./ComparePanel";
 import { CorpPanel } from "./CorpPanel";
+import { SalesPanel, sortSales, type SalesItem, type SalesSort } from "./SalesPanel";
 import { TrendPanel } from "./TrendPanel";
 import { Note, PickChips } from "./ui";
 
@@ -51,13 +69,19 @@ const PAGE = 150;
 const RADIUS_KEY = "care-office-map:radius";
 const ALL_ON: Record<CategoryId, boolean> = categoryRecord(true);
 
-type Mode = "list" | "gap" | "trend" | "corp";
+type Mode = "list" | "gap" | "trend" | "corp" | "compete";
+/** 「|」はスマホで2行に折れるときの区切り */
 const MODES: { id: Mode; label: string }[] = [
   { id: "list", label: "さがす" },
-  { id: "gap", label: "需要と競合" },
-  { id: "trend", label: "競合の動き" },
-  { id: "corp", label: "法人の勢力" },
+  { id: "gap", label: "需要と|競合" },
+  { id: "trend", label: "競合の|動き" },
+  { id: "corp", label: "法人の|勢力" },
+  { id: "compete", label: "体制|比較" },
 ];
+const modeName = (m: Mode) => MODES.find((x) => x.id === m)?.label.replace("|", "") ?? "";
+
+/** 需要と競合で選んだサービスが足りないとき、紹介をもらいに行く先（営業先）の種類 */
+const SALES_TARGET: Partial<Record<CategoryId, CategoryId>> = { hh: "cm", vn: "cm", dv: "cs" };
 
 const PERIODS = [
   { value: 6, label: "半年" },
@@ -110,6 +134,20 @@ export function OfficeMapApp() {
   const [bothOnly, setBothOnly] = useState(false);
   const [fitPoints, setFitPoints] = useState<{ points: { lat: number; lng: number }[]; token: number } | null>(null);
 
+  // 体制比較（公表ページの詳細）
+  const [details, setDetails] = useState<DetailsData | null>(null);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [compCat, setCompCat] = useState<CompareCat>("hh");
+  const [metric, setMetric] = useState<MetricId>("users");
+  const [includeStale, setIncludeStale] = useState(false);
+  const [selectedComp, setSelectedComp] = useState<string | null>(null);
+  const [now] = useState(() => new Date());
+
+  // 営業先のおすすめ（需要と競合の中）
+  const [salesSort, setSalesSort] = useState<SalesSort>("short");
+  const [salesSel, setSalesSel] = useState<string[]>([]);
+  const [salesHi, setSalesHi] = useState<string | null>(null);
+
   useEffect(() => {
     let alive = true;
     getJson<OfficeData>("/data/offices.json")
@@ -127,6 +165,10 @@ export function OfficeMapApp() {
         getJson<HistoryData>("/data/history.json")
           .then((h) => alive && setHistory(h))
           .catch((e) => alive && setHistoryError(String(e)));
+        // 詳細欄・体制比較・営業先で使う公表ページの数字（まだ取得していなければ無い）
+        getJson<DetailsData>("/data/details.json")
+          .then((x) => alive && setDetails(x))
+          .catch((e) => alive && setDetailsError(String(e)));
       })
       .catch((e) => alive && setLoadError(String(e)));
     return () => {
@@ -265,6 +307,21 @@ export function OfficeMapApp() {
     return out;
   }, [mode, gap, colorMode, base, breaks]);
 
+  const salesCat = SALES_TARGET[gapCat] ?? null;
+  const salesItems: SalesItem[] = useMemo(() => {
+    if (!gap || !salesCat) return [];
+    const byCode = new Map(gap.cells.map((g) => [g.c, g]));
+    const out: SalesItem[] = [];
+    for (const o of rows) {
+      if (o.self || o.lat == null || o.lng == null || o.distance == null || o.distance > radius + 1e-9) continue;
+      if (!o.categories.includes(salesCat)) continue;
+      const cell = byCode.get(meshCodeAt(o.lat, o.lng));
+      if (!cell || cell.index == null || cell.index >= 1) continue;
+      out.push({ office: o, cell, d: salesCat === "cm" ? (detailOf(o, "430", details?.details)?.d ?? null) : null });
+    }
+    return sortSales(out, salesSort);
+  }, [gap, salesCat, rows, radius, details, salesSort]);
+
   const pickCell = useCallback(
     (code: string, fly: boolean) => {
       if (!gap?.cells.some((g) => g.c === code)) {
@@ -340,6 +397,55 @@ export function OfficeMapApp() {
     }
   }, [land]);
 
+  // ---------- 体制比較 ----------
+  const compInfo = COMPARE_CATS.find((c) => c.id === compCat) ?? COMPARE_CATS[0];
+  const compItems: CompareItem[] = useMemo(() => {
+    if (mode !== "compete") return [];
+    const list = rows
+      .filter((o) => o.distance != null && o.distance <= radius + 1e-9 && o.kaigoPages?.some((p) => p.code === compInfo.code))
+      .map((o) => {
+        const hit = detailOf(o, compInfo.code, details?.details);
+        return { office: o, d: hit?.d ?? null, stale: hit ? isStale(hit.d, now) : false };
+      });
+    const val = (x: CompareItem) => (x.d && (includeStale || !x.stale) ? metricOf(x.d, metric) : undefined);
+    return list.sort((a, b) => {
+      const va = val(a);
+      const vb = val(b);
+      if (va != null && vb != null && va !== vb) return vb - va;
+      if (va == null && vb != null) return 1;
+      if (vb == null && va != null) return -1;
+      return (a.office.distance ?? 99) - (b.office.distance ?? 99);
+    });
+  }, [mode, rows, radius, compInfo, details, now, metric, includeStale]);
+
+  /** 「さがす」の詳細に出す順位：範囲内の同じサービス（記入が2年以内のもの）の中で */
+  const rankFor: RankFor = useCallback(
+    (id, code) => {
+      if (!details) return null;
+      const me = rows.find((o) => o.id === id);
+      const mine = me ? detailOf(me, code, details.details) : null;
+      if (!mine) return null;
+      const peers = rows
+        .filter((o) => o.id !== id && o.distance != null && o.distance <= radius + 1e-9)
+        .map((o) => detailOf(o, code, details.details))
+        .filter((h): h is NonNullable<typeof h> => !!h && !isStale(h.d, now));
+      const items: { label: string; rank: number; of: number }[] = [];
+      for (const [label, m] of [
+        ["利用者数", "users"],
+        ["職員数", "staff"],
+      ] as const) {
+        const v = metricOf(mine.d, m);
+        if (v == null) continue;
+        const values = peers.map((h) => metricOf(h.d, m)).filter((x): x is number => x != null);
+        if (values.length < 2) continue;
+        items.push({ label, rank: rankOf(values, v), of: values.length + 1 });
+      }
+      const name = COMPARE_CATS.find((c) => c.code === code)?.name ?? "";
+      return items.length ? { scope: `自社から${radius}km以内の${name}の中で`, items } : null;
+    },
+    [details, rows, radius, now],
+  );
+
   const showAlerts = () => {
     setCats(() => {
       const next = categoryRecord(false);
@@ -356,9 +462,38 @@ export function OfficeMapApp() {
   const points: MapPoint[] = useMemo(() => {
     if (!data) return [];
     if (mode === "gap") {
-      return data.offices
-        .filter((o) => o.lat != null && o.lng != null && !o.self && o.categories.includes(gapCat))
+      // 選んだサービスの事業所（競合）は濃い灰色、営業先はその種類の色（道順に入れた所は濃い縁）
+      const sales = new Set(salesItems.map((x) => x.office.id));
+      const pts: MapPoint[] = data.offices
+        .filter((o) => o.lat != null && o.lng != null && !o.self && o.categories.includes(gapCat) && !sales.has(o.id))
         .map((o) => ({ id: o.id, lat: o.lat as number, lng: o.lng as number, color: "#334155" }));
+      for (const x of salesItems) {
+        pts.push({
+          id: x.office.id,
+          lat: x.office.lat as number,
+          lng: x.office.lng as number,
+          color: categoryColor(salesCat ?? "cm"),
+          style: salesSel.includes(x.office.id) ? "new" : "normal",
+        });
+      }
+      return pts;
+    }
+    if (mode === "compete") {
+      // 利用者の多い事業所ほど大きな点。数字の無い・古いものは薄い灰色
+      const color = categoryColor(compCat);
+      return compItems
+        .filter((x) => x.office.lat != null && x.office.lng != null)
+        .map((x) => {
+          const u = x.d && (includeStale || !x.stale) ? usersOf(x.d) : undefined;
+          return {
+            id: x.office.id,
+            lat: x.office.lat as number,
+            lng: x.office.lng as number,
+            color,
+            style: u == null ? ("muted" as const) : ("normal" as const),
+            scale: u == null ? 1 : Math.min(2, 0.7 + Math.sqrt(u) / 10),
+          };
+        });
     }
     if (mode === "corp") {
       // 選んだ法人の事業所（10km圏すべて）を種類の色で、ほかは範囲内のものを薄い灰色で
@@ -394,7 +529,7 @@ export function OfficeMapApp() {
         // 絞り込みで表示中の種類のうち、いちばん先のものの色で塗る
         color: categoryColor(o.categories.find((c) => cats[c]) ?? o.categories[0]),
       }));
-  }, [data, mode, gapCat, changes, visible, cats, rows, radius, selectedCorpObj]);
+  }, [data, mode, gapCat, changes, visible, cats, rows, radius, selectedCorpObj, salesItems, salesCat, salesSel, compItems, compCat, includeStale]);
 
   const onMapSelect = useCallback(
     (id: string, spot: number) => {
@@ -404,6 +539,11 @@ export function OfficeMapApp() {
         const o = data?.offices.find((x) => x.id === id);
         const k = o ? corpKeyOf(o) : null;
         if (k) chooseCorp(k, false);
+      } else if (mode === "compete") {
+        setSelectedComp(id);
+        requestAnimationFrame(() =>
+          document.getElementById(`cmp-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+        );
       } else if (mode === "trend") {
         setSelectedChange(id);
         requestAnimationFrame(() =>
@@ -412,9 +552,16 @@ export function OfficeMapApp() {
       } else {
         const o = data?.offices.find((x) => x.id === id);
         if (o?.lat != null && o.lng != null) pickCell(meshCodeAt(o.lat, o.lng), false);
+        // 営業先の点なら、一覧のその行を見せる
+        if (salesItems.some((x) => x.office.id === id)) {
+          setSalesHi(id);
+          requestAnimationFrame(() =>
+            document.getElementById(`sales-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+          );
+        }
       }
     },
-    [mode, select, data, pickCell, chooseCorp],
+    [mode, select, data, pickCell, chooseCorp, salesItems],
   );
 
   const onCellSelect = useCallback((code: string) => pickCell(code, false), [pickCell]);
@@ -429,7 +576,9 @@ export function OfficeMapApp() {
         ? `${gapCatName}が${DEMAND_LABEL[base]}の人数に対して足りている場所・足りない場所`
         : mode === "trend"
           ? `自社から${radius}km以内で新しく載った／載らなくなった事業所`
-          : `自社から${radius}km以内の事業所を、法人ごとにまとめて`;
+          : mode === "corp"
+            ? `自社から${radius}km以内の事業所を、法人ごとにまとめて`
+            : `自社から${radius}km以内の${compInfo.name}の職員・利用者・加算`;
 
   const radiusChips = (
     <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="自社からの距離">
@@ -486,16 +635,21 @@ export function OfficeMapApp() {
         )}
       </header>
 
-      <nav className="grid grid-cols-4 rounded-lg border border-rule bg-white p-0.5 text-[13px] font-bold lg:max-w-xl" aria-label="見方">
+      <nav className="grid grid-cols-5 rounded-lg border border-rule bg-white p-0.5 text-[13px] font-bold leading-tight lg:max-w-2xl" aria-label="見方">
         {MODES.map((m) => (
           <button
             key={m.id}
             type="button"
             aria-pressed={mode === m.id}
             onClick={() => changeMode(m.id)}
-            className={`rounded-md px-2 py-1.5 ${mode === m.id ? "bg-ink text-white" : "text-ink"}`}
+            className={`break-keep rounded-md px-1 py-1.5 ${mode === m.id ? "bg-ink text-white" : "text-ink"}`}
           >
-            {m.label}
+            {m.label.split("|").map((part, i) => (
+              <span key={part}>
+                {i > 0 && <wbr />}
+                {part}
+              </span>
+            ))}
           </button>
         ))}
       </nav>
@@ -539,6 +693,8 @@ export function OfficeMapApp() {
               value={gapCat}
               onChange={(v) => {
                 setGapCat(v);
+                setSalesSel([]);
+                setSalesHi(null);
                 // 障害のサービスは高齢者ではなく総人口で見るのが自然なので、切り替えたときに寄せる
                 if ((v === "dv" || v === "cs") && base !== "pop") setBase("pop");
                 if (v !== "dv" && v !== "cs" && base === "pop") setBase("p75");
@@ -568,6 +724,28 @@ export function OfficeMapApp() {
           <>
             {categoryChips(false)}
             <PickChips label="期間" options={PERIODS} value={months} onChange={setMonths} />
+            {radiusChips}
+          </>
+        )}
+        {mode === "compete" && (
+          <>
+            <PickChips
+              label="比べる"
+              options={COMPARE_CATS.map((c) => ({ value: c.id, label: c.name, color: categoryColor(c.id) }))}
+              value={compCat}
+              onChange={(v) => {
+                setCompCat(v);
+                setSelectedComp(null);
+                const code = COMPARE_CATS.find((c) => c.id === v)?.code ?? "110";
+                if (!metricsFor(code).includes(metric)) setMetric("users");
+              }}
+            />
+            <PickChips
+              label="並べ替え"
+              options={metricsFor(compInfo.code).map((m) => ({ value: m, label: METRIC_LABEL[m].replace("（前年同月比）", "") }))}
+              value={metric}
+              onChange={setMetric}
+            />
             {radiusChips}
           </>
         )}
@@ -609,7 +787,9 @@ export function OfficeMapApp() {
               center={center}
               radiusKm={radius}
               points={points}
-              selectedId={mode === "trend" ? selectedChange : mode === "list" ? selectedId : null}
+              selectedId={
+                mode === "trend" ? selectedChange : mode === "list" ? selectedId : mode === "compete" ? selectedComp : mode === "gap" ? salesHi : null
+              }
               onSelect={onMapSelect}
               cells={cellOverlay}
               focusCell={mode === "gap" ? focusCell : null}
@@ -632,7 +812,7 @@ export function OfficeMapApp() {
           )}
         </div>
 
-        <section className="min-h-0 flex-1 overflow-y-auto pb-4 lg:order-1 lg:w-[400px] lg:flex-none" aria-label={MODES.find((m) => m.id === mode)?.label}>
+        <section className="min-h-0 flex-1 overflow-y-auto pb-4 lg:order-1 lg:w-[400px] lg:flex-none" aria-label={modeName(mode)}>
           {mode === "gap" && (
             <GapPanel
               gap={gap}
@@ -646,6 +826,57 @@ export function OfficeMapApp() {
               selectedCell={selectedCellObj}
               breaks={breaks}
               onPickCell={(code) => pickCell(code, true)}
+              extra={
+                salesCat && center ? (
+                  <SalesPanel
+                    items={salesItems}
+                    cat={gapCat}
+                    catName={gapCatName}
+                    targetName={CATEGORIES.find((c) => c.id === salesCat)?.name ?? ""}
+                    radiusKm={radius}
+                    sort={salesSort}
+                    onSort={setSalesSort}
+                    hasSize={salesCat === "cm" && !!details}
+                    selected={salesSel}
+                    onToggle={(id) => setSalesSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
+                    onClear={() => setSalesSel([])}
+                    highlightId={salesHi}
+                    center={center}
+                    onFocus={(id) => {
+                      setSalesHi(id);
+                      const o = data?.offices.find((x) => x.id === id);
+                      if (o?.lat != null && o.lng != null) {
+                        setFocus({ lat: o.lat, lng: o.lng, token: Date.now() });
+                        pickCell(meshCodeAt(o.lat, o.lng), false);
+                      }
+                    }}
+                    onOpenOffice={openOffice}
+                    now={now}
+                  />
+                ) : null
+              }
+            />
+          )}
+
+          {mode === "compete" && (
+            <ComparePanel
+              details={details}
+              error={detailsError}
+              cat={compCat}
+              radiusKm={radius}
+              metric={metric}
+              items={compItems}
+              includeStale={includeStale}
+              onIncludeStale={setIncludeStale}
+              selectedId={selectedComp}
+              onSelect={(id) => {
+                setSelectedComp((cur) => (cur === id ? null : id));
+                const o = data?.offices.find((x) => x.id === id);
+                if (o?.lat != null && o.lng != null) setFocus({ lat: o.lat, lng: o.lng, token: Date.now() });
+              }}
+              onOpenOffice={openOffice}
+              forms={data?.kaigoDetailForms}
+              now={now}
             />
           )}
 
@@ -708,6 +939,9 @@ export function OfficeMapApp() {
                     sameSpot={o.id === selectedId ? sameSpot : 0}
                     center={center}
                     forms={data?.kaigoDetailForms}
+                    details={details}
+                    rankFor={rankFor}
+                    now={now}
                     onToggle={() => select(o.id)}
                   />
                 ))}
@@ -729,6 +963,8 @@ export function OfficeMapApp() {
                     <p className="text-[11px] leading-relaxed text-muted">
                       「需要と競合」の人口：総務省統計局「令和2年国勢調査」250mメッシュ・小地域境界（e-Stat）を加工。
                       「競合の動き」：厚生労働省（2021年6月末〜）・WAM NET（2021年11月末〜）の過去の公表データを加工。
+                      「体制比較」と詳細の「体制」：介護サービス情報公表システム（厚生労働省）の各事業所の公表ページ（基本情報）を年2回取得して読み取り・加工
+                      {details ? `（${details.generatedAt.slice(0, 10).replaceAll("-", "/")} 作成、${Object.keys(details.details).length}ページ分）` : ""}。
                     </p>
                   }
                 />

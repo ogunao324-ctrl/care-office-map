@@ -5,8 +5,13 @@
  */
 
 import { useState } from "react";
+import { compareCatOf, detailOf, type DetailsData, type KaigoCode } from "@/lib/details";
 import { digitsOnly, formatDistance, kaigoPageUrl, WAM_SEARCH_URL, type Office, type OfficeData } from "@/lib/offices";
+import { DetailFacts } from "./DetailFacts";
 import { ACT, ServiceChip } from "./ui";
+
+/** 範囲内での順位（「さがす」の詳細に出す）。体制比較と同じ数え方 */
+export type RankFor = (officeId: string, code: KaigoCode) => { scope: string; items: { label: string; rank: number; of: number }[] } | null;
 
 /** 一覧の1件（距離と検索用の文字を足したもの） */
 export type Row = Office & { distance: number | null; key: string };
@@ -17,6 +22,9 @@ export function OfficeRow({
   sameSpot,
   center,
   forms,
+  details,
+  rankFor,
+  now,
   onToggle,
 }: {
   office: Row;
@@ -24,6 +32,9 @@ export function OfficeRow({
   sameSpot: number;
   center: { lat: number; lng: number } | null;
   forms?: Record<string, string>;
+  details?: DetailsData | null;
+  rankFor?: RankFor;
+  now: Date;
   onToggle: () => void;
 }) {
   const both =
@@ -43,7 +54,7 @@ export function OfficeRow({
         </span>
         <span className="col-span-2 break-words text-xs text-muted">{o.address}</span>
       </button>
-      {open && <OfficeDetail office={o} sameSpot={sameSpot} center={center} forms={forms} />}
+      {open && <OfficeDetail office={o} sameSpot={sameSpot} center={center} forms={forms} details={details} rankFor={rankFor} now={now} />}
     </li>
   );
 }
@@ -53,11 +64,17 @@ function OfficeDetail({
   sameSpot,
   center,
   forms,
+  details,
+  rankFor,
+  now,
 }: {
   office: Row;
   sameSpot: number;
   center: { lat: number; lng: number } | null;
   forms?: Record<string, string>;
+  details?: DetailsData | null;
+  rankFor?: RankFor;
+  now: Date;
 }) {
   const [copied, setCopied] = useState(false);
   const [nameCopied, setNameCopied] = useState(false);
@@ -120,6 +137,17 @@ function OfficeDetail({
           <button type="button" disabled className={`${act} cursor-not-allowed opacity-45`}>ホームページなし</button>
         )}
       </div>
+      {(["110", "130", "430"] as KaigoCode[]).map((code) => {
+        const hit = detailOf(o, code, details?.details);
+        if (!hit) return null;
+        const multi = (o.kaigoPages?.length ?? 0) > 1;
+        return (
+          <div key={code} className="grid gap-1.5 rounded-lg border border-rule p-2.5">
+            <p className="text-xs font-bold">体制{multi ? `（${compareCatOf(code)?.name}）` : ""}・公表ページより</p>
+            <DetailFacts d={hit.d} code={code} now={now} ranks={rankFor?.(o.id, code)} />
+          </div>
+        );
+      })}
       {((o.kaigoPages?.length ?? 0) > 0 || hasShogai) && (
         <div className="grid gap-1.5 rounded-lg bg-[#f3f5f2] p-2.5">
           <p className="text-xs text-muted">公表ページ（従業者の数・決算書類などが見られます）</p>
