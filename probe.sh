@@ -1,26 +1,29 @@
 set -x
 mkdir -p out && cd out
+rm -f *.txt *.html
 UA="Mozilla/5.0 (care-office-map probe)"
 B=https://www.kaigokensaku.mhlw.go.jp
-curl -sSL -A "$UA" -o copyright.html $B/copyright/
-# 最近更新している事業所（ニチイ・SOMPOなど）の概要ページ
-curl -sSL -A "$UA" -o kani_a.html "$B/12/index.php?action_kouhyou_detail_001_kani=true&JigyosyoCd=1270200874-00&ServiceCd=110"
-curl -sSL -A "$UA" -o kani_b.html "$B/12/index.php?action_kouhyou_detail_023_kani=true&JigyosyoCd=1270101148-00&ServiceCd=430"
-curl -sSL -A "$UA" -o kani_c.html "$B/12/index.php?action_kouhyou_detail_004_kani=true&JigyosyoCd=1260191924-00&ServiceCd=130"
-curl -sSL -A "$UA" -o kihon_a.html "$B/12/index.php?action_kouhyou_detail_001_kihon=true&JigyosyoCd=1270200874-00&ServiceCd=110"
-for f in copyright kani_a kani_b kani_c kihon_a; do python3 - "$f" <<'PY'
-import sys,re,html
+get() { # code form number
+  curl -sSL -A "$UA" -w "%{http_code} %{size_download} %{time_total}\n" -o "raw_$1_$3.html" "$B/12/index.php?action_kouhyou_detail_$2_kihon=true&JigyosyoCd=$3-00&ServiceCd=$1"
+  sleep 3
+}
+get 110 001 1270200874
+get 110 001 1270200981
+get 130 004 1260191239
+get 130 004 1260191627
+get 430 023 1270203969
+get 430 023 1270200031
+get 110 001 1270299999
+for f in raw_*.html; do python3 - "$f" <<'PY'
+import sys,re
 f=sys.argv[1]
-s=open(f+'.html',encoding='utf-8',errors='replace').read()
-s=re.sub(r'(?is)<(script|style)[^>]*>.*?</\1>',' ',s)
-s=re.sub(r'<img[^>]*alt="([^"]*)"[^>]*>',r' [\1] ',s)
-s=re.sub(r'(?i)<br\s*/?>','\n',s)
-s=re.sub(r'(?i)</(p|div|tr|li|h\d|table|th|td)>','\n',s)
-t=html.unescape(re.sub(r'<[^>]+>',' ',s))
-t=re.sub(r'[ \t　]+',' ',t)
-t=re.sub(r'\n\s*\n+','\n',t)
-open(f+'.txt','w').write(t)
-print('==',f,len(t))
+s=open(f,encoding='utf-8',errors='replace').read()
+s=re.sub(r'(?is)<(script|style|svg|noscript)[^>]*>.*?</\1>','',s)
+s=re.sub(r'(?is)<!--.*?-->','',s)
+s=re.sub(r'[ \t]+',' ',s)
+s=re.sub(r'\n\s*\n+','\n',s)
+open(f.replace('raw_','kihon_'),'w').write(s)
+print('==',f,len(s))
 PY
 done
-rm -f *.html
+rm -f raw_*.html
