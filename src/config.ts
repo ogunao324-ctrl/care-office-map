@@ -43,3 +43,6 @@ export const ALERT_CATEGORIES = ["hh", "dv"] as const;
 
 /** 位置情報のない事業所でも、この区の住所なら一覧に残す */
 export const HOME_WARD = "千葉市花見川区";
+
+/** 住所がこれ以外の都道府県の事業所は、緯度経度が近くても捨てる（公表データの位置の付け間違い対策） */
+export const HOME_PREF = "千葉県";

@@ -195,7 +195,23 @@ export type ParseOptions = {
   maxKm: number;
   /** 位置情報が無い行を残す区（例：千葉市花見川区） */
   homeWard: string;
+  /** 住所がこれ以外の都道府県で始まる行は、位置が近くても捨てる（例：千葉県） */
+  homePref?: string;
 };
+
+const PREFECTURES =
+  "北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県";
+const PREF_HEAD = new RegExp(`^(${PREFECTURES})`);
+
+/**
+ * 住所が自分の都道府県以外で始まっているか。
+ * 公表データには、北海道や広島の事業所なのに緯度経度だけ千葉市内を指している行がある（位置の付け間違い）。
+ * 住所に都道府県名が無いときは判断できないので false。
+ */
+export function isOtherPrefecture(address: string, homePref: string): boolean {
+  const m = String(address ?? "").normalize("NFKC").trim().match(PREF_HEAD);
+  return !!m && m[1] !== homePref;
+}
 
 /**
  * 1つの CSV を読み、自社から maxKm 以内の行だけを返す。
@@ -234,6 +250,7 @@ export function parseOpenData(text: string, fileName: string, opt: ParseOptions)
     const pref = cell(r, col.pref);
     if (city && !address.includes(city)) address = city + address;
     if (pref && !address.startsWith(pref)) address = pref + address;
+    if (opt.homePref && isOtherPrefecture(address, opt.homePref)) return;
 
     if (hasLoc) {
       if (distanceKm(opt.center, { lat, lng }) > opt.maxKm) return;

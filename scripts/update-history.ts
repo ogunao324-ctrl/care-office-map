@@ -13,10 +13,10 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { FALLBACK_CENTER, HOME_WARD, MAX_KM } from "../src/config";
+import { FALLBACK_CENTER, HOME_PREF, HOME_WARD, MAX_KM } from "../src/config";
 import type { HistoryData, HistoryOffice, HistorySource } from "../src/lib/history";
 import { distanceKm, normAddr, type OfficeData } from "../src/lib/offices";
-import { decodeText, parseOpenData } from "../src/lib/opendata";
+import { decodeText, isOtherPrefecture, parseOpenData } from "../src/lib/opendata";
 import { download, expand, fetchText } from "./net";
 import { findAllMhlwLinks, findAllWamLinks, MHLW_PAGE, WAM_PAGE, type HistoryLink } from "./sources";
 
@@ -55,6 +55,7 @@ async function fetchSnapshot(src: HistorySource, link: HistoryLink): Promise<Sna
       center: FALLBACK_CENTER,
       maxKm: MAX_KM + 1,
       homeWard: HOME_WARD,
+      homePref: HOME_PREF,
     });
     for (const r of res.rows) {
       // 事業所番号が無い古い行は、名前と住所で代わりの番号を作る
@@ -116,6 +117,8 @@ async function build(): Promise<HistoryData> {
     const len = snapshots[snap.src].length;
     for (const r of snap.rows) {
       if (r.la != null && r.lo != null && distanceKm(c, { lat: r.la, lng: r.lo }) > MAX_KM) continue;
+      // 取得済みの古い時点のファイルには、他県の住所で位置だけ近い行が残っている
+      if (isOtherPrefecture(r.a, HOME_PREF)) continue;
       const key = `${snap.src}|${r.s}|${r.no}`;
       let o = map.get(key);
       if (!o) {

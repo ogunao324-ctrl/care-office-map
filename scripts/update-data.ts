@@ -18,6 +18,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   FALLBACK_CENTER,
+  HOME_PREF,
   HOME_WARD,
   MAX_KM,
   SELF_ADDRESS_KEY,
@@ -32,7 +33,7 @@ import {
   type Office,
   type OfficeData,
 } from "../src/lib/offices";
-import { decodeText, findSelf, mergeOffices, parseOpenData, type OpenDataRow } from "../src/lib/opendata";
+import { decodeText, findSelf, isOtherPrefecture, mergeOffices, parseOpenData, type OpenDataRow } from "../src/lib/opendata";
 import { download, expand, fetchText, type Input } from "./net";
 import { findMhlwLinks, findWamLinks, listDataLinks, MHLW_PAGE, WAM_PAGE, type FoundLink } from "./sources";
 
@@ -126,7 +127,7 @@ async function collectInputs(opts: ReturnType<typeof parseArgs>): Promise<Input[
 
 async function saveRows(inputs: Input[]): Promise<number> {
   // 自社が見つかると中心が数十mずれるので、取り込み時は少し広めに残す
-  const opt = { center: FALLBACK_CENTER, maxKm: MAX_KM + 1, homeWard: HOME_WARD };
+  const opt = { center: FALLBACK_CENTER, maxKm: MAX_KM + 1, homeWard: HOME_WARD, homePref: HOME_PREF };
   const byService = new Map<string, RowsFile>();
   for (const input of inputs) {
     for (const part of await expand(input)) {
@@ -177,7 +178,8 @@ async function rebuild(): Promise<OfficeData> {
       : { ...FALLBACK_CENTER, label: "千葉市花見川区浪花町（町の代表点）", source: "fallback" as const };
 
   const inRange = (r: OpenDataRow) =>
-    r.lat != null && r.lng != null ? distanceKm(center, { lat: r.lat, lng: r.lng }) <= MAX_KM : r.address.includes(HOME_WARD);
+    !isOtherPrefecture(r.address, HOME_PREF) &&
+    (r.lat != null && r.lng != null ? distanceKm(center, { lat: r.lat, lng: r.lng }) <= MAX_KM : r.address.includes(HOME_WARD));
   const rows = all.filter(inRange);
   const offices = mergeOffices(rows, SELF_ADDRESS_KEY);
 

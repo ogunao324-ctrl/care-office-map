@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { findMhlwLinks, findWamLinks } from "../../../scripts/sources";
 import { FALLBACK_CENTER, HOME_WARD, SELF_ADDRESS_KEY } from "../../config";
 import { categoryOf, kaigoPageUrl, normAddr, normalizeUrl } from "../offices";
-import { decodeText, findSelf, mergeOffices, parseCSV, parseOpenData } from "../opendata";
+import { decodeText, findSelf, isOtherPrefecture, mergeOffices, parseCSV, parseOpenData } from "../opendata";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "fixtures", name));
 const opt = { center: FALLBACK_CENTER, maxKm: 10, homeWard: HOME_WARD };
@@ -146,4 +146,12 @@ test("介護の公表ページ: 事業所番号とサービス番号を持ち、
     kaigoPageUrl(p, { "130": "004" }),
     "https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_004_kihon=true&JigyosyoCd=1260190123-00&ServiceCd=130",
   );
+});
+
+test("他県の住所なのに位置だけ近い行（位置の付け間違い）を見分ける", () => {
+  assert.equal(isOtherPrefecture("北海道旭川市緑が丘３条３丁目１番地の２", "千葉県"), true);
+  assert.equal(isOtherPrefecture("神奈川県相模原市南区若松1-12-35", "千葉県"), true);
+  assert.equal(isOtherPrefecture("千葉県千葉市花見川区浪花町", "千葉県"), false);
+  // 都道府県名の無い住所は判断できないので残す
+  assert.equal(isOtherPrefecture("千葉市花見川区幕張町5-225", "千葉県"), false);
 });
