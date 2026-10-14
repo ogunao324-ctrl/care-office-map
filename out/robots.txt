@@ -1,8 +1,0 @@
-User-agent: *
-Disallow: /shuukei
-Disallow: /kanri
-Disallow: /houkoku
-Disallow: /seikatu_kanri
-Disallow: /err
-Disallow: /upload
-
