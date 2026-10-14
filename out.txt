@@ -1,25 +1,55 @@
 + mkdir -p out
 + cd out
++ rm -f copyright.txt kani_a.txt kani_b.txt kani_c.txt kihon_a.txt '*.html'
 + UA='Mozilla/5.0 (care-office-map probe)'
 + B=https://www.kaigokensaku.mhlw.go.jp
-+ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o copyright.html https://www.kaigokensaku.mhlw.go.jp/copyright/
-+ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o kani_a.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_001_kani=true&JigyosyoCd=1270200874-00&ServiceCd=110'
-+ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o kani_b.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_023_kani=true&JigyosyoCd=1270101148-00&ServiceCd=430'
-+ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o kani_c.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_004_kani=true&JigyosyoCd=1260191924-00&ServiceCd=130'
-+ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -o kihon_a.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_001_kihon=true&JigyosyoCd=1270200874-00&ServiceCd=110'
-+ for f in copyright kani_a kani_b kani_c kihon_a
-+ python3 - copyright
-== copyright 1537
-+ for f in copyright kani_a kani_b kani_c kihon_a
-+ python3 - kani_a
-== kani_a 2387
-+ for f in copyright kani_a kani_b kani_c kihon_a
-+ python3 - kani_b
-== kani_b 2064
-+ for f in copyright kani_a kani_b kani_c kihon_a
-+ python3 - kani_c
-== kani_c 2694
-+ for f in copyright kani_a kani_b kani_c kihon_a
-+ python3 - kihon_a
-== kihon_a 7356
-+ rm -f copyright.html kani_a.html kani_b.html kani_c.html kihon_a.html
++ get 110 001 1270200874
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_110_1270200874.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_001_kihon=true&JigyosyoCd=1270200874-00&ServiceCd=110'
+200 157417 1.258517
++ sleep 3
++ get 110 001 1270200981
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_110_1270200981.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_001_kihon=true&JigyosyoCd=1270200981-00&ServiceCd=110'
+200 151338 1.169374
++ sleep 3
++ get 130 004 1260191239
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_130_1260191239.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_004_kihon=true&JigyosyoCd=1260191239-00&ServiceCd=130'
+200 183380 1.329372
++ sleep 3
++ get 130 004 1260191627
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_130_1260191627.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_004_kihon=true&JigyosyoCd=1260191627-00&ServiceCd=130'
+200 184110 1.406214
++ sleep 3
++ get 430 023 1270203969
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_430_1270203969.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_023_kihon=true&JigyosyoCd=1270203969-00&ServiceCd=430'
+200 220657 1.331138
++ sleep 3
++ get 430 023 1270200031
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_430_1270200031.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_023_kihon=true&JigyosyoCd=1270200031-00&ServiceCd=430'
+200 218207 1.337431
++ sleep 3
++ get 110 001 1270299999
++ curl -sSL -A 'Mozilla/5.0 (care-office-map probe)' -w '%{http_code} %{size_download} %{time_total}\n' -o raw_110_1270299999.html 'https://www.kaigokensaku.mhlw.go.jp/12/index.php?action_kouhyou_detail_001_kihon=true&JigyosyoCd=1270299999-00&ServiceCd=110'
+200 5141 0.672924
++ sleep 3
++ for f in raw_*.html
++ python3 - raw_110_1270200874.html
+== raw_110_1270200874.html 112132
++ for f in raw_*.html
++ python3 - raw_110_1270200981.html
+== raw_110_1270200981.html 106726
++ for f in raw_*.html
++ python3 - raw_110_1270299999.html
+== raw_110_1270299999.html 3445
++ for f in raw_*.html
++ python3 - raw_130_1260191239.html
+== raw_130_1260191239.html 135928
++ for f in raw_*.html
++ python3 - raw_130_1260191627.html
+== raw_130_1260191627.html 136686
++ for f in raw_*.html
++ python3 - raw_430_1270200031.html
+== raw_430_1270200031.html 168973
++ for f in raw_*.html
++ python3 - raw_430_1270203969.html
+== raw_430_1270203969.html 169969
++ rm -f raw_110_1270200874.html raw_110_1270200981.html raw_110_1270299999.html raw_130_1260191239.html raw_130_1260191627.html raw_430_1270200031.html raw_430_1270203969.html
