@@ -49,8 +49,8 @@ export type MapPoint = {
   lat: number;
   lng: number;
   color: string;
-  /** normal：塗り＋白い縁 / new：塗り＋濃い縁 / gone：白抜きの灰色 */
-  style?: "normal" | "new" | "gone";
+  /** normal：塗り＋白い縁 / new：塗り＋濃い縁 / gone：白抜きの灰色 / muted：小さな薄い灰色（背景として見せるだけ） */
+  style?: "normal" | "new" | "gone" | "muted";
 };
 
 export type CellOverlay = { code: string; color: string; opacity: number };
@@ -70,6 +70,8 @@ type Props = {
   fitToken: number;
   /** 値が変わるたびに、選んだ事業所へ寄る */
   focus: { lat: number; lng: number; token: number } | null;
+  /** 値が変わるたびに、これらの点が全部入るように合わせる（選んだ法人の事業所など） */
+  fitPoints?: { points: LatLng[]; token: number } | null;
 };
 
 const SELF_ICON_HTML =
@@ -90,6 +92,7 @@ export function OfficeMap({
   onCellSelect,
   fitToken,
   focus,
+  fitPoints,
 }: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const LRef = useRef<typeof Leaflet | null>(null);
@@ -243,6 +246,17 @@ export function OfficeMap({
     mapRef.current.fitBounds(circleRef.current.getBounds(), { padding: [12, 12] });
   }, [ready, fitToken]);
 
+  // 指定の点が全部入るように合わせる
+  useEffect(() => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!ready || !L || !map || !fitPoints || !fitPoints.points.length) return;
+    const b = L.latLngBounds(fitPoints.points.map((p) => [p.lat, p.lng] as [number, number]));
+    map.fitBounds(b.extend([center.lat, center.lng]), { padding: [28, 28], maxZoom: 15 });
+    // 中心は合わせ直しのときだけ使う
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, fitPoints]);
+
   // 選んだ事業所へ寄る
   useEffect(() => {
     if (!ready || !focus || !mapRef.current) return;
@@ -300,13 +314,16 @@ export function OfficeMap({
       groups.set(key, g);
     }
     let selected: MapPoint | null = null;
-    // 載らなくなった（白抜き）を先に描き、塗りの点を上に重ねる
-    const ordered = [...groups.values()].sort((a, b) => Number(b[0].style === "gone") - Number(a[0].style === "gone"));
+    // 薄い灰色・載らなくなった（白抜き）を先に描き、塗りの点を上に重ねる
+    const back = (g: MapPoint[]) => (g[0].style === "muted" ? 2 : g[0].style === "gone" ? 1 : 0);
+    const ordered = [...groups.values()].sort((a, b) => back(b) - back(a));
     for (const g of ordered) {
       const p = g[0];
       const size = r + (g.length > 1 ? 1 : 0);
       const opts: Leaflet.CircleMarkerOptions =
-        p.style === "gone"
+        p.style === "muted"
+          ? { renderer, radius: Math.max(3, size - 1.5), fillColor: "#a3aca6", fillOpacity: 0.85, color: "#ffffff", weight: 1 }
+          : p.style === "gone"
           ? { renderer, radius: size, fillColor: "#ffffff", fillOpacity: 1, color: "#7a837f", weight: 2, dashArray: "3 2" }
           : p.style === "new"
             ? { renderer, radius: size + 1, fillColor: p.color, fillOpacity: 0.95, color: "#15211e", weight: 2.5 }

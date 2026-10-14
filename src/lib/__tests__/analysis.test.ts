@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { findAllMhlwLinks, findAllWamLinks, wamAsOf, ymFromText } from "../../../scripts/sources";
 import { computeGap, shortageRanking, type AreaCell } from "../areas";
+import { corpLandscape, corpTypeOf, prettyCorpName } from "../corps";
 import { countSeries, periodChanges, type HistoryData } from "../history";
 import { meshBounds, meshCenter, meshCodeAt } from "../mesh";
 
@@ -120,4 +121,58 @@ test("緯度経度 → 500m メッシュ番号（中心から戻すと同じ番�
   }
   // 自社のあたり
   assert.equal(meshCodeAt(35.657369, 140.066266).slice(0, 4), "5340");
+});
+
+test("法人の種類を名前から決める", () => {
+  assert.equal(corpTypeOf("株式会社やさしい手"), "company");
+  assert.equal(corpTypeOf("有限会社 さつき"), "company");
+  assert.equal(corpTypeOf("（株）ハートフル"), "company");
+  assert.equal(corpTypeOf("社会福祉法人千葉勤労者福祉会"), "welfare");
+  assert.equal(corpTypeOf("医療法人社団 緑栄会"), "medical");
+  assert.equal(corpTypeOf("特定非営利活動法人 たすけあい"), "npo");
+  assert.equal(corpTypeOf("一般社団法人 ささえ"), "assoc");
+  assert.equal(corpTypeOf("ちば県民保健予防財団"), "other");
+  assert.equal(corpTypeOf("生活協同組合コープみらい"), "coop");
+  assert.equal(corpTypeOf("千葉市"), "gov");
+});
+
+test("法人ごとのまとめ：法人番号でまとめ、無ければ名前の表記ゆれを寄せてまとめる", () => {
+  const base = { address: "", numbers: [], services: [], capacity: [], lat: 0, lng: 0 };
+  const offices = [
+    { ...base, id: "a", name: "A1", corp: "株式会社エー", corpNo: "1111111111111", categories: ["hh" as const], distance: 0.5 },
+    { ...base, id: "b", name: "A2", corp: "株式会社 エー", corpNo: "1111111111111", categories: ["cm" as const], distance: 1.2 },
+    { ...base, id: "c", name: "A3", corp: "株式会社エー", corpNo: "1111111111111", categories: ["dv" as const], distance: 8 },
+    { ...base, id: "d", name: "B1", corp: "（株）ビー", categories: ["hh" as const], distance: 0.8 },
+    { ...base, id: "e", name: "B2", corp: "株式会社ビー", categories: ["hh" as const], distance: 1.5 },
+    { ...base, id: "f", name: "C1", corp: "社会福祉法人シー", categories: ["hh" as const, "dv" as const], distance: 2 },
+    { ...base, id: "g", name: "無名", categories: ["hh" as const], distance: 1 },
+  ];
+  const all = { cm: true, hh: true, vn: true, dv: true, cs: true, ot: true };
+  const r = corpLandscape(offices, { radiusKm: 3, cats: all });
+  assert.deepEqual(
+    r.corps.map((c) => [c.name, c.offices.length, c.all.length, c.both]),
+    [
+      ["株式会社エー", 2, 3, true],
+      ["株式会社ビー", 2, 2, false],
+      ["社会福祉法人シー", 1, 1, true],
+    ],
+  );
+  assert.equal(r.totalOffices, 6);
+  assert.equal(r.noCorp, 1);
+  assert.equal(r.singles, 1);
+  assert.deepEqual(r.byType.map((t) => [t.type, t.corps, t.offices]), [
+    ["company", 2, 4],
+    ["welfare", 1, 1],
+  ]);
+  const onlyHh = corpLandscape(offices, { radiusKm: 3, cats: { ...all, cm: false, dv: false } });
+  assert.equal(onlyHh.corps[0].name, "株式会社ビー");
+  const both = corpLandscape(offices, { radiusKm: 3, cats: all, bothOnly: true });
+  assert.deepEqual(both.corps.map((c) => c.name), ["株式会社エー", "社会福祉法人シー"]);
+});
+
+test("表示用の法人名", () => {
+  assert.equal(prettyCorpName("株式会社　ニチイ学館"), "株式会社ニチイ学館");
+  assert.equal(prettyCorpName("ＳＯＭＰＯケア株式会社"), "SOMPOケア株式会社");
+  assert.equal(prettyCorpName("株式会社ＴＡＫＥ　ＡＣＴＩＯＮ"), "株式会社TAKE ACTION");
+  assert.equal(prettyCorpName("医療法人社団　緑栄会"), "医療法人社団緑栄会");
 });

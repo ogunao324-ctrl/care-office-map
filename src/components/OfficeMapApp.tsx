@@ -7,6 +7,7 @@
  *  - 事業所をさがす：検索・絞り込み → 地図 → 自社から近い順の一覧
  *  - 需要と競合　　：500m 四方のマスを「事業所の足りなさ」か「人数」で色分けし、足りない町を並べる
  *  - 競合の動き　　：期間内に新しく載った／載らなくなった事業所と、数の推移
+ *  - 法人の勢力　　：事業所を法人ごとにまとめ、事業所の多い法人・法人の種類・大手の強さを出す
  *
  * スマホ：上に操作、その下に地図、残りが一覧などの中身。PC（幅1024px〜）：左に中身、右に地図。
  *
@@ -32,10 +33,12 @@ import {
 import { periodChanges, ymLabel, type Change, type HistoryData } from "@/lib/history";
 import { meshCodeAt } from "@/lib/mesh";
 import { CATEGORIES, categoryColor, categoryRecord, digitsOnly, distanceKm, type CategoryId, type OfficeData } from "@/lib/offices";
+import { corpKeyOf, corpLandscape } from "@/lib/corps";
 import { searchKey } from "@/lib/search-text";
 import { GapPanel, type ColorMode } from "./GapPanel";
 import type { CellOverlay, MapPoint } from "./OfficeMap";
 import { AboutData, OfficeRow, type Row } from "./OfficeList";
+import { CorpPanel } from "./CorpPanel";
 import { TrendPanel } from "./TrendPanel";
 import { Note, PickChips } from "./ui";
 
@@ -48,11 +51,12 @@ const PAGE = 150;
 const RADIUS_KEY = "care-office-map:radius";
 const ALL_ON: Record<CategoryId, boolean> = categoryRecord(true);
 
-type Mode = "list" | "gap" | "trend";
+type Mode = "list" | "gap" | "trend" | "corp";
 const MODES: { id: Mode; label: string }[] = [
-  { id: "list", label: "事業所をさがす" },
+  { id: "list", label: "さがす" },
   { id: "gap", label: "需要と競合" },
   { id: "trend", label: "競合の動き" },
+  { id: "corp", label: "法人の勢力" },
 ];
 
 const PERIODS = [
@@ -100,6 +104,11 @@ export function OfficeMapApp() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [months, setMonths] = useState(12);
   const [selectedChange, setSelectedChange] = useState<string | null>(null);
+
+  // 法人の勢力
+  const [selectedCorp, setSelectedCorp] = useState<string | null>(null);
+  const [bothOnly, setBothOnly] = useState(false);
+  const [fitPoints, setFitPoints] = useState<{ points: { lat: number; lng: number }[]; token: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -287,8 +296,9 @@ export function OfficeMapApp() {
     [data],
   );
 
-  const openOfficeFromChange = (c: Change) => {
-    const o = officeOfChange(c);
+  /** 「事業所をさがす」に移って、その事業所の詳細を開く（一覧に出るよう距離と種類を広げる） */
+  const openOffice = (id: string) => {
+    const o = data?.offices.find((x) => x.id === id);
     if (!o) return;
     const d = o.lat != null && o.lng != null && center ? distanceKm(center, { lat: o.lat, lng: o.lng }) : 0;
     const r = RADII.find((x) => x >= d) ?? RADII[RADII.length - 1];
@@ -302,6 +312,33 @@ export function OfficeMapApp() {
     changeMode("list");
     setPendingSelect(o.id);
   };
+
+  const openOfficeFromChange = (c: Change) => {
+    const o = officeOfChange(c);
+    if (o) openOffice(o.id);
+  };
+
+  // ---------- 法人の勢力 ----------
+  const land = useMemo(
+    () => (mode === "corp" && data ? corpLandscape(rows, { radiusKm: radius, cats, bothOnly }) : null),
+    [mode, data, rows, radius, cats, bothOnly],
+  );
+  const selectedCorpObj = useMemo(() => land?.corps.find((c) => c.key === selectedCorp) ?? null, [land, selectedCorp]);
+
+  /** 法人を選ぶ：中身の欄を上に戻して法人の詳細を見せ、（一覧から選んだときは）その法人の事業所が全部入るように地図を合わせる */
+  const chooseCorp = useCallback((key: string | null, fit: boolean) => {
+    setSelectedCorp(key);
+    document.querySelector('section[aria-label="法人の勢力"]')?.scrollTo({ top: 0, behavior: "smooth" });
+    if (!key) {
+      setFitToken((t) => t + 1);
+      return;
+    }
+    const corp = land?.corps.find((c) => c.key === key);
+    if (fit && corp) {
+      const pts = corp.all.filter((o) => o.lat != null && o.lng != null).map((o) => ({ lat: o.lat as number, lng: o.lng as number }));
+      setFitPoints({ points: pts, token: Date.now() });
+    }
+  }, [land]);
 
   const showAlerts = () => {
     setCats(() => {
@@ -323,6 +360,20 @@ export function OfficeMapApp() {
         .filter((o) => o.lat != null && o.lng != null && !o.self && o.categories.includes(gapCat))
         .map((o) => ({ id: o.id, lat: o.lat as number, lng: o.lng as number, color: "#334155" }));
     }
+    if (mode === "corp") {
+      // 選んだ法人の事業所（10km圏すべて）を種類の色で、ほかは範囲内のものを薄い灰色で
+      const pts: MapPoint[] = [];
+      const mine = new Set(selectedCorpObj?.all.map((o) => o.id) ?? []);
+      for (const o of rows) {
+        if (o.lat == null || o.lng == null || o.self) continue;
+        if (mine.has(o.id)) {
+          pts.push({ id: o.id, lat: o.lat, lng: o.lng, color: categoryColor(o.categories.find((c) => cats[c]) ?? o.categories[0]) });
+        } else if (o.distance != null && o.distance <= radius && o.categories.some((c) => cats[c])) {
+          pts.push({ id: o.id, lat: o.lat, lng: o.lng, color: "#a3aca6", style: "muted" });
+        }
+      }
+      return pts;
+    }
     if (mode === "trend") {
       return changes
         .filter((c) => c.lat != null && c.lng != null)
@@ -343,12 +394,17 @@ export function OfficeMapApp() {
         // 絞り込みで表示中の種類のうち、いちばん先のものの色で塗る
         color: categoryColor(o.categories.find((c) => cats[c]) ?? o.categories[0]),
       }));
-  }, [data, mode, gapCat, changes, visible, cats]);
+  }, [data, mode, gapCat, changes, visible, cats, rows, radius, selectedCorpObj]);
 
   const onMapSelect = useCallback(
     (id: string, spot: number) => {
       if (mode === "list") select(id, spot, true);
-      else if (mode === "trend") {
+      else if (mode === "corp") {
+        // 点を押したら、その事業所の法人を選ぶ
+        const o = data?.offices.find((x) => x.id === id);
+        const k = o ? corpKeyOf(o) : null;
+        if (k) chooseCorp(k, false);
+      } else if (mode === "trend") {
         setSelectedChange(id);
         requestAnimationFrame(() =>
           document.getElementById(`chg-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
@@ -358,7 +414,7 @@ export function OfficeMapApp() {
         if (o?.lat != null && o.lng != null) pickCell(meshCodeAt(o.lat, o.lng), false);
       }
     },
-    [mode, select, data, pickCell],
+    [mode, select, data, pickCell, chooseCorp],
   );
 
   const onCellSelect = useCallback((code: string) => pickCell(code, false), [pickCell]);
@@ -371,7 +427,9 @@ export function OfficeMapApp() {
       ? `自社から${radius}km以内${data ? `・${visible.length.toLocaleString("ja-JP")}件` : ""}`
       : mode === "gap"
         ? `${gapCatName}が${DEMAND_LABEL[base]}の人数に対して足りている場所・足りない場所`
-        : `自社から${radius}km以内で新しく載った／載らなくなった事業所`;
+        : mode === "trend"
+          ? `自社から${radius}km以内で新しく載った／載らなくなった事業所`
+          : `自社から${radius}km以内の事業所を、法人ごとにまとめて`;
 
   const radiusChips = (
     <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="自社からの距離">
@@ -428,7 +486,7 @@ export function OfficeMapApp() {
         )}
       </header>
 
-      <nav className="grid grid-cols-3 rounded-lg border border-rule bg-white p-0.5 text-[13px] font-bold lg:max-w-md" aria-label="見方">
+      <nav className="grid grid-cols-4 rounded-lg border border-rule bg-white p-0.5 text-[13px] font-bold lg:max-w-xl" aria-label="見方">
         {MODES.map((m) => (
           <button
             key={m.id}
@@ -513,6 +571,21 @@ export function OfficeMapApp() {
             {radiusChips}
           </>
         )}
+        {mode === "corp" && (
+          <>
+            {categoryChips(false)}
+            <PickChips
+              label="法人"
+              options={[
+                { value: "all", label: "すべて" },
+                { value: "both", label: "介護＋障害の両方をしている法人" },
+              ]}
+              value={bothOnly ? "both" : "all"}
+              onChange={(v) => setBothOnly(v === "both")}
+            />
+            {radiusChips}
+          </>
+        )}
       </div>
 
       {mode === "list" && alerts.length > 0 && (
@@ -543,6 +616,7 @@ export function OfficeMapApp() {
               onCellSelect={mode === "gap" ? onCellSelect : undefined}
               fitToken={fitToken}
               focus={focus}
+              fitPoints={fitPoints}
             />
           ) : (
             <div className="h-full w-full rounded-xl border border-rule bg-[#e9ece6]" />
@@ -572,6 +646,16 @@ export function OfficeMapApp() {
               selectedCell={selectedCellObj}
               breaks={breaks}
               onPickCell={(code) => pickCell(code, true)}
+            />
+          )}
+
+          {mode === "corp" && (
+            <CorpPanel
+              land={land}
+              radiusKm={radius}
+              selected={selectedCorpObj}
+              onSelectCorp={(k) => chooseCorp(k, true)}
+              onOpenOffice={openOffice}
             />
           )}
 
