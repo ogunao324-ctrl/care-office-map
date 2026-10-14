@@ -57,6 +57,8 @@ export type Office = {
   kana?: string;
   /** 法人名 */
   corp?: string;
+  /** 法人番号（13桁）。公表データに無ければ無し */
+  corpNo?: string;
   address: string;
   tel?: string;
   fax?: string;

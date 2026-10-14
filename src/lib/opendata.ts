@@ -31,6 +31,8 @@ export type OpenDataRow = {
   name: string;
   kana: string;
   corp: string;
+  /** 法人番号（国税庁の13桁）。法人ごとにまとめるときに使う */
+  corpNo: string;
   address: string;
   tel: string;
   fax: string;
@@ -175,6 +177,7 @@ export function mapHeader(headers: string[]) {
       (h) => h === "事業所FAX番号" || h === "FAX番号",
       (h) => /fax|ファクス|ファックス/i.test(h) && !h.includes("法人"),
     ]),
+    corpNo: findColumn(H, [(h) => h === "法人番号"]),
     corp: findColumn(H, [
       (h) => h === "法人の名称" || h === "法人名",
       (h) => h.includes("法人") && h.includes("名") && !KANA.test(h) && !h.includes("番号"),
@@ -248,6 +251,7 @@ export function parseOpenData(text: string, fileName: string, opt: ParseOptions)
       name,
       kana: cell(r, col.kana),
       corp: cell(r, col.corp),
+      corpNo: /^\d{13}$/.test(digitsOnly(cell(r, col.corpNo))) ? digitsOnly(cell(r, col.corpNo)) : "",
       address,
       tel: cell(r, col.tel),
       fax: cell(r, col.fax),
@@ -315,6 +319,7 @@ export function mergeOffices(rows: OpenDataRow[], selfAddressKey: string): Offic
     }
     if (!hit.kana && r.kana) hit.kana = r.kana;
     if (!hit.corp && r.corp) hit.corp = r.corp;
+    if (!hit.corpNo && r.corpNo) hit.corpNo = r.corpNo;
     if (!hit.tel && r.tel) hit.tel = r.tel;
     if (!hit.fax && r.fax) hit.fax = r.fax;
     if (!hit.url) hit.url = normalizeUrl(r.url) ?? undefined;
