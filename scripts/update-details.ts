@@ -1,7 +1,7 @@
 /**
  * 介護の事業所の「詳細」ページ（介護サービス情報公表システム）から、職員・利用者・加算を取る
  *
- * 対象：offices.json にある訪問介護・訪問看護・居宅介護支援（自社から 10km 以内、約 900 ページ）
+ * 対象：offices.json にある訪問介護・訪問看護（自社から 10km 以内、約 550 ページ）
  * 取り方：1ページずつ、数秒おきにゆっくり。年2回（GitHub Actions）。
  *         取ったものは data/details/ に1件1ファイルで残し、150日たつまでは取り直さない。
  *         時間の上限を過ぎたらそこで区切り、続きは次の実行で取る。
@@ -17,7 +17,7 @@
  *   npm run details -- --rebuild     # 取りに行かず、data/details/ から details.json だけ作り直す
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { detailKey, parseKihon, type Detail, type DetailRecord, type DetailsData, type KaigoCode } from "../src/lib/details";
 import { kaigoPageUrl, type OfficeData } from "../src/lib/offices";
@@ -38,7 +38,8 @@ const MAX_AGE_DAYS = 150;
 /** 続けてこの回数失敗したら、相手に負担をかけないよう止める */
 const MAX_FAILS = 6;
 
-const CODES: KaigoCode[] = ["110", "130", "430"];
+/** 居宅介護支援（430）は画面で使わないので取らない（2026-10-14、ユーザーの指示） */
+const CODES: KaigoCode[] = ["110", "130"];
 
 type Target = { key: string; number: string; code: KaigoCode; url: string; name: string };
 type CacheFile = { key: string; fetched: string; status: "ok" | "notfound"; detail?: Detail };
@@ -143,7 +144,11 @@ async function build(list: Target[]): Promise<DetailsData> {
   const details: Record<string, DetailRecord> = {};
   for (const n of names) {
     const key = n.replace(/\.json$/, "");
-    if (!keys.has(key)) continue;
+    if (!keys.has(key)) {
+      // 対象でなくなったもの（居宅介護支援など）のキャッシュは残さない
+      await rm(join(DIR, n), { force: true });
+      continue;
+    }
     const c = await readCache(key);
     if (c?.status === "ok" && c.detail) details[key] = { ...c.detail, fetched: c.fetched };
   }

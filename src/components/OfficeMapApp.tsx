@@ -103,6 +103,8 @@ export function OfficeMapApp() {
   const [data, setData] = useState<OfficeData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("list");
+  /** 「さがす」以外のタブで、スマホでは検索窓を畳んでおき、虫めがねを押したときだけ出す */
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // 事業所をさがす
   const [query, setQuery] = useState("");
@@ -180,6 +182,7 @@ export function OfficeMapApp() {
   // 見方を切り替えたら、範囲の円全体が入るように地図を合わせ直す
   const changeMode = (m: Mode) => {
     setMode(m);
+    setSearchOpen(false);
     setFitToken((t) => t + 1);
   };
 
@@ -318,10 +321,10 @@ export function OfficeMapApp() {
       if (!o.categories.includes(salesCat)) continue;
       const cell = byCode.get(meshCodeAt(o.lat, o.lng));
       if (!cell || cell.index == null || cell.index >= 1) continue;
-      out.push({ office: o, cell, d: salesCat === "cm" ? (detailOf(o, "430", details?.details)?.d ?? null) : null });
+      out.push({ office: o, cell });
     }
     return sortSales(out, salesSort);
-  }, [gap, salesCat, rows, radius, details, salesSort]);
+  }, [gap, salesCat, rows, radius, salesSort]);
 
   const pickCell = useCallback(
     (code: string, fly: boolean) => {
@@ -574,7 +577,7 @@ export function OfficeMapApp() {
     mode === "list"
       ? `自社から${radius}km以内${data ? `・${visible.length.toLocaleString("ja-JP")}件` : ""}`
       : mode === "gap"
-        ? `${gapCatName}が${DEMAND_LABEL[base]}の人数に対して足りている場所・足りない場所`
+        ? `${gapCatName}の足りなさ（${DEMAND_LABEL[base]}の人数に対して）`
         : mode === "trend"
           ? `自社から${radius}km以内で新しく載った／載らなくなった事業所`
           : mode === "corp"
@@ -629,10 +632,23 @@ export function OfficeMapApp() {
           <h1 className="text-lg font-bold tracking-wide">花見川 事業所マップ</h1>
           <p className="truncate text-xs text-muted">{subline}</p>
         </div>
-        {mode === "list" && (
+        {mode === "list" ? (
           <a href="#about-data" className="shrink-0 rounded-full border border-rule bg-white px-3 py-1.5 text-xs font-bold text-ink">
             データについて
           </a>
+        ) : (
+          <button
+            type="button"
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen((v) => !v)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold lg:hidden ${searchOpen ? "border-ink bg-ink text-white" : "border-rule bg-white text-ink"}`}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            事業所を探す
+          </button>
         )}
       </header>
 
@@ -645,12 +661,12 @@ export function OfficeMapApp() {
             onClick={() => changeMode(m.id)}
             className={`break-keep rounded-md px-1 py-1.5 ${mode === m.id ? "bg-ink text-white" : "text-ink"}`}
           >
-            {m.label.split("|").map((part, i) => (
-              <span key={part}>
-                {i > 0 && <wbr />}
-                {part}
-              </span>
-            ))}
+            {/* どのタブも同じ高さの2行に揃える */}
+            <span className="flex min-h-[2.5em] flex-col items-center justify-center lg:min-h-0 lg:flex-row">
+              {m.label.split("|").map((part) => (
+                <span key={part}>{part}</span>
+              ))}
+            </span>
           </button>
         ))}
       </nav>
@@ -686,7 +702,11 @@ export function OfficeMapApp() {
             {radiusChips}
           </>
         )}
-        {mode !== "list" && <SearchJump rows={rows} onPick={openOffice} />}
+        {mode !== "list" && (
+          <div className={`${searchOpen ? "" : "hidden"} lg:block lg:min-w-[320px] lg:flex-1`}>
+            <SearchJump rows={rows} onPick={openOffice} autoFocus={searchOpen} />
+          </div>
+        )}
         {mode === "gap" && (
           <>
             <PickChips
@@ -838,7 +858,6 @@ export function OfficeMapApp() {
                     radiusKm={radius}
                     sort={salesSort}
                     onSort={setSalesSort}
-                    hasSize={salesCat === "cm" && !!details}
                     selected={salesSel}
                     onToggle={(id) => setSalesSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
                     onClear={() => setSalesSel([])}
@@ -853,7 +872,6 @@ export function OfficeMapApp() {
                       }
                     }}
                     onOpenOffice={openOffice}
-                    now={now}
                   />
                 ) : null
               }

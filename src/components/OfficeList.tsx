@@ -137,7 +137,7 @@ function OfficeDetail({
           <button type="button" disabled className={`${act} cursor-not-allowed opacity-45`}>ホームページなし</button>
         )}
       </div>
-      {(["110", "130", "430"] as KaigoCode[]).map((code) => {
+      {(["110", "130"] as KaigoCode[]).map((code) => {
         const hit = detailOf(o, code, details?.details);
         if (!hit) return null;
         const multi = (o.kaigoPages?.length ?? 0) > 1;

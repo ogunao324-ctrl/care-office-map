@@ -12,24 +12,18 @@
 import { useState } from "react";
 import { GAP_RADIUS_KM } from "@/config";
 import { shortageStep, type GapCell } from "@/lib/areas";
-import { usersOf, type DetailRecord } from "@/lib/details";
 import { digitsOnly, formatDistance, type CategoryId, type LatLng } from "@/lib/offices";
 import { MAX_WAYPOINTS, orderStops, routeUrl } from "@/lib/route";
-import { fmtNum, StaleBadge } from "./DetailFacts";
 import type { Row } from "./OfficeList";
 import { ACT, Note, PickChips } from "./ui";
 
-export type SalesItem = { office: Row; cell: GapCell; d: DetailRecord | null };
-export type SalesSort = "short" | "near" | "big";
+export type SalesItem = { office: Row; cell: GapCell };
+export type SalesSort = "short" | "near";
 
 export function sortSales(items: SalesItem[], sort: SalesSort): SalesItem[] {
-  const by = {
-    short: (a: SalesItem, b: SalesItem) => (a.cell.index ?? 9) - (b.cell.index ?? 9) || (a.office.distance ?? 99) - (b.office.distance ?? 99),
-    near: (a: SalesItem, b: SalesItem) => (a.office.distance ?? 99) - (b.office.distance ?? 99),
-    big: (a: SalesItem, b: SalesItem) =>
-      (b.d ? (usersOf(b.d) ?? -1) : -1) - (a.d ? (usersOf(a.d) ?? -1) : -1) || (a.cell.index ?? 9) - (b.cell.index ?? 9),
-  }[sort];
-  return [...items].sort(by);
+  const near = (a: SalesItem, b: SalesItem) => (a.office.distance ?? 99) - (b.office.distance ?? 99);
+  const short = (a: SalesItem, b: SalesItem) => (a.cell.index ?? 9) - (b.cell.index ?? 9) || near(a, b);
+  return [...items].sort(sort === "short" ? short : near);
 }
 
 const SHOW = 20;
@@ -42,7 +36,6 @@ export function SalesPanel({
   radiusKm,
   sort,
   onSort,
-  hasSize,
   selected,
   onToggle,
   onClear,
@@ -50,7 +43,6 @@ export function SalesPanel({
   center,
   onFocus,
   onOpenOffice,
-  now,
 }: {
   items: SalesItem[];
   /** 足りないサービス（訪問介護など） */
@@ -61,8 +53,6 @@ export function SalesPanel({
   radiusKm: number;
   sort: SalesSort;
   onSort: (s: SalesSort) => void;
-  /** 大きさ（利用者数）で並べられるか（居宅介護支援だけ公表ページの数字がある） */
-  hasSize: boolean;
   selected: string[];
   onToggle: (id: string) => void;
   onClear: () => void;
@@ -70,7 +60,6 @@ export function SalesPanel({
   center: LatLng;
   onFocus: (id: string) => void;
   onOpenOffice: (id: string) => void;
-  now: Date;
 }) {
   const [shown, setShown] = useState(SHOW);
   const [returnHome, setReturnHome] = useState(true);
@@ -115,7 +104,6 @@ export function SalesPanel({
         options={[
           { value: "short" as SalesSort, label: "足りない順" },
           { value: "near" as SalesSort, label: "近い順" },
-          ...(hasSize ? [{ value: "big" as SalesSort, label: "利用者の多い順" }] : []),
         ]}
         value={sort}
         onChange={onSort}
@@ -129,7 +117,6 @@ export function SalesPanel({
             const o = x.office;
             const on = selected.includes(o.id);
             const step = shortageStep(x.cell.index);
-            const users = x.d ? usersOf(x.d) : undefined;
             return (
               <li
                 key={o.id}
@@ -165,13 +152,6 @@ export function SalesPanel({
                   <span className="whitespace-nowrap text-sm tabular-nums">{formatDistance(o.distance)}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[34px] text-xs text-muted">
-                  {x.d && (
-                    <>
-                      {x.d.staff?.head != null && <span>ケアマネ {fmtNum(x.d.staff.head)}人</span>}
-                      {users != null && <span>利用者 {fmtNum(users)}人</span>}
-                      <StaleBadge d={x.d} now={now} />
-                    </>
-                  )}
                   <span className="break-words">{o.address}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pl-[34px]">

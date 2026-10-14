@@ -413,12 +413,11 @@ export function kasanShares(list: Detail[]): { name: string; count: number; of: 
 // ---------------------------------------------------------------------------
 // 体制比較：事業所と詳細を結びつけ、範囲の中で比べる
 
-export type CompareCat = "hh" | "vn" | "cm";
+export type CompareCat = "hh" | "vn";
 
 export const COMPARE_CATS: { id: CompareCat; code: KaigoCode; name: string; staff: string; sub: string }[] = [
   { id: "hh", code: "110", name: "訪問介護", staff: "訪問介護員", sub: "サービス提供責任者" },
   { id: "vn", code: "130", name: "訪問看護", staff: "看護職員", sub: "リハビリ職" },
-  { id: "cm", code: "430", name: "居宅介護支援", staff: "ケアマネジャー", sub: "主任ケアマネ" },
 ];
 
 export function compareCatOf(code: string): (typeof COMPARE_CATS)[number] | undefined {

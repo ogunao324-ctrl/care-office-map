@@ -13,7 +13,7 @@ import { ServiceChip } from "./ui";
 
 const MAX = 8;
 
-export function SearchJump({ rows, onPick }: { rows: Row[]; onPick: (id: string) => void }) {
+export function SearchJump({ rows, onPick, autoFocus }: { rows: Row[]; onPick: (id: string) => void; autoFocus?: boolean }) {
   const [query, setQuery] = useState("");
 
   const hits = useMemo(() => {
@@ -26,7 +26,7 @@ export function SearchJump({ rows, onPick }: { rows: Row[]; onPick: (id: string)
   }, [rows, query]);
 
   return (
-    <div className="relative lg:min-w-[320px] lg:flex-1">
+    <div className="relative">
       <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3">
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
@@ -34,11 +34,12 @@ export function SearchJump({ rows, onPick }: { rows: Row[]; onPick: (id: string)
         </svg>
         <input
           type="search"
+          autoFocus={autoFocus}
           autoComplete="off"
           enterKeyHint="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="事業所を探す（名前・法人名・住所・電話番号）"
+          placeholder="事業所名・法人名・住所・電話番号"
           aria-label="事業所を検索"
           className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none"
         />

@@ -178,7 +178,7 @@ export function ComparePanel({
   now: Date;
 }) {
   const [shown, setShown] = useState(SHOW);
-  const info = compareCatOf(cat === "hh" ? "110" : cat === "vn" ? "130" : "430");
+  const info = compareCatOf(cat === "hh" ? "110" : "130");
   if (error)
     return (
       <Note title="公表ページの数字はまだありません">

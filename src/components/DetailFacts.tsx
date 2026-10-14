@@ -91,16 +91,10 @@ export function DetailFacts({
             <dd className="tabular-nums">{fmtNum(d.nurse)}時間（介護保険の分）</dd>
           </>
         )}
-        {d.hoursPer != null && code !== "430" && (
+        {d.hoursPer != null && (
           <>
             <dt className="text-xs text-muted">1人あたり</dt>
             <dd className="tabular-nums">月 {fmtNum(d.hoursPer, 1)}時間</dd>
-          </>
-        )}
-        {d.perCm != null && (
-          <>
-            <dt className="text-xs text-muted">1人あたり</dt>
-            <dd className="tabular-nums">利用者 {fmtNum(d.perCm, 1)}人</dd>
           </>
         )}
         {(d.hired != null || d.left != null) && (
