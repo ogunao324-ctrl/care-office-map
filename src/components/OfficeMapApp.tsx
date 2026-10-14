@@ -3,7 +3,7 @@
 /**
  * 画面全体
  *
- * 5つの見方を上のタブで切り替える。地図は共通で、見方ごとに描くものが変わる。
+ * 5つの見方を上のタブで切り替える（「さがす」以外のタブにも事業所の検索窓がある。選ぶと「さがす」で詳細を開く）。地図は共通で、見方ごとに描くものが変わる。
  *  - 事業所をさがす：検索・絞り込み → 地図 → 自社から近い順の一覧
  *  - 需要と競合　　：500m 四方のマスを「事業所の足りなさ」か「人数」で色分けし、足りない町を並べる
  *  - 競合の動き　　：期間内に新しく載った／載らなくなった事業所と、数の推移
@@ -56,6 +56,7 @@ import type { CellOverlay, MapPoint } from "./OfficeMap";
 import { AboutData, OfficeRow, type RankFor, type Row } from "./OfficeList";
 import { ComparePanel, type CompareItem } from "./ComparePanel";
 import { CorpPanel } from "./CorpPanel";
+import { SearchJump } from "./SearchJump";
 import { SalesPanel, sortSales, type SalesItem, type SalesSort } from "./SalesPanel";
 import { TrendPanel } from "./TrendPanel";
 import { Note, PickChips } from "./ui";
@@ -685,6 +686,7 @@ export function OfficeMapApp() {
             {radiusChips}
           </>
         )}
+        {mode !== "list" && <SearchJump rows={rows} onPick={openOffice} />}
         {mode === "gap" && (
           <>
             <PickChips
