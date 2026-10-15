@@ -50,7 +50,7 @@ export function SearchJump({ rows, onPick, autoFocus }: { rows: Row[]; onPick: (
         )}
       </label>
       {query.trim() && (
-        <div className="absolute inset-x-0 top-full z-[1100] mt-1 max-h-[60vh] overflow-y-auto rounded-2xl glass bg-white/95!">
+        <div className="absolute inset-x-0 top-full z-[1100] mt-1 max-h-[60vh] overflow-y-auto rounded-2xl glass bg-[#0b141b]/95!">
           {hits.list.length === 0 ? (
             <p className="px-3 py-3 text-sm text-muted">見つかりませんでした。</p>
           ) : (

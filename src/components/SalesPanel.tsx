@@ -131,7 +131,7 @@ export function SalesPanel({
                     aria-label={`${o.name}を道順に入れる`}
                     disabled={!on && full}
                     onClick={() => onToggle(o.id)}
-                    className={`mt-0.5 grid h-6 w-6 place-items-center rounded-md border-2 text-sm font-bold ${on ? "border-transparent bg-grad" : "border-rule bg-white text-transparent"} disabled:opacity-40`}
+                    className={`mt-0.5 grid h-6 w-6 place-items-center rounded-md border-2 text-sm font-bold ${on ? "border-transparent bg-grad" : "border-white/25 bg-transparent text-transparent"} disabled:opacity-40`}
                   >
                     ✓
                   </button>
@@ -146,7 +146,7 @@ export function SalesPanel({
                       )}
                       {x.cell.n && <span>{x.cell.n}付近</span>}
                       {/* 同じ事業所で同じサービスもしているなら、自前で回すことが多い */}
-                      {o.categories.includes(cat) && <span className="rounded bg-[#eef2f1] px-1.5 text-[11px] text-ink">同じ事業所で{catName}も</span>}
+                      {o.categories.includes(cat) && <span className="rounded-md bg-white/[0.08] px-1.5 text-[11px] text-ink">同じ事業所で{catName}も</span>}
                     </span>
                   </button>
                   <span className="whitespace-nowrap text-sm tabular-nums">{formatDistance(o.distance)}</span>
@@ -170,13 +170,13 @@ export function SalesPanel({
         </ol>
       )}
       {items.length > shown && (
-        <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80">
+        <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-2xl border border-dashed border-accent/30 bg-accent/[0.04] py-2.5 text-sm font-bold text-accent transition-colors hover:bg-accent/10">
           さらに表示（残り {items.length - shown} か所）
         </button>
       )}
 
       {selected.length > 0 && (
-        <div className="sticky bottom-0 z-10 grid gap-1.5 card card-hero px-3 py-2 shadow-sm">
+        <div className="card card-hero sticky bottom-0 z-10 grid gap-1.5 bg-[#0b141b]/95! px-3 py-2 backdrop-blur-md">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
             <b>{chosen.length}か所を選択中</b>
             <label className="flex items-center gap-1 text-xs">

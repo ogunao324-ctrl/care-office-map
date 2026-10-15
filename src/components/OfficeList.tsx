@@ -52,7 +52,7 @@ export function OfficeRow({
         </span>
         <span className="col-span-2 flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted">
           {o.self && <span className="rounded-md bg-grad px-1.5 text-[11px] font-bold leading-relaxed">自社</span>}
-          {both && <span className="rounded-md bg-linear-to-r from-[#2f56c6]/12 to-[#2c8a43]/12 px-1.5 text-[11px] font-bold leading-relaxed text-ink">介護＋障害</span>}
+          {both && <span className="rounded-md bg-linear-to-r from-[#2f56c6]/40 to-[#2c8a43]/40 px-1.5 text-[11px] font-bold leading-relaxed text-ink">介護＋障害</span>}
           {o.services.map((s) => (
             <ServiceChip key={s} service={s} />
           ))}
@@ -148,23 +148,23 @@ function OfficeDetail({
         if (!hit) return null;
         const multi = (o.kaigoPages?.length ?? 0) > 1;
         return (
-          <div key={code} className="grid gap-1.5 rounded-xl border border-ink/[0.07] bg-white/60 p-2.5">
+          <div key={code} className="grid gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5">
             <p className="text-xs font-bold">体制{multi ? `（${compareCatOf(code)?.name}）` : ""}・公表ページより</p>
             <DetailFacts d={hit.d} code={code} now={now} ranks={rankFor?.(o.id, code)} />
           </div>
         );
       })}
       {((o.kaigoPages?.length ?? 0) > 0 || hasShogai) && (
-        <div className="grid gap-1.5 rounded-xl bg-[#eef4f2] p-2.5">
+        <div className="grid gap-1.5 rounded-xl border border-accent/15 bg-accent/[0.06] p-2.5">
           <p className="text-xs text-muted">公表ページ（従業者の数・決算書類などが見られます）</p>
           <div className="flex flex-wrap gap-1.5">
             {o.kaigoPages?.map((p) => (
-              <a key={p.code} className={`${act} bg-white`} target="_blank" rel="noopener" href={kaigoPageUrl(p, forms)}>
+              <a key={p.code} className={`${act}`} target="_blank" rel="noopener" href={kaigoPageUrl(p, forms)}>
                 {o.kaigoPages && o.kaigoPages.length > 1 ? `介護の公表ページ（${p.service}）` : "介護の公表ページ"}
               </a>
             ))}
             {hasShogai && (
-              <a className={`${act} bg-white`} target="_blank" rel="noopener" href={WAM_SEARCH_URL} onClick={copyName}>
+              <a className={`${act}`} target="_blank" rel="noopener" href={WAM_SEARCH_URL} onClick={copyName}>
                 障害の公表ページを探す
               </a>
             )}

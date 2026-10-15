@@ -61,7 +61,7 @@ import { CorpPanel } from "./CorpPanel";
 import { SearchJump } from "./SearchJump";
 import { SalesPanel, sortSales, type SalesItem, type SalesSort } from "./SalesPanel";
 import { TrendPanel } from "./TrendPanel";
-import { Note, PickChips } from "./ui";
+import { lighten, Note, PickChips } from "./ui";
 
 const OfficeMap = dynamic(() => import("./OfficeMap").then((m) => m.OfficeMap), {
   ssr: false,
@@ -646,14 +646,14 @@ export function OfficeMapApp() {
               setShown(PAGE);
             }}
             className={`chip ${on ? "" : "opacity-50 shadow-none"}`}
-            style={on ? { borderColor: `${c.color}55`, background: `linear-gradient(135deg, ${c.color}1f, #ffffffd9)` } : undefined}
+            style={on ? { borderColor: `${c.color}80`, background: `linear-gradient(135deg, ${c.color}40, ${c.color}12)`, boxShadow: `0 0 16px -6px ${c.color}` } : undefined}
           >
             <span
               className="h-2.5 w-2.5 rounded-full transition-shadow"
-              style={on ? { background: c.color, boxShadow: `0 0 0 3px ${c.color}2e, 0 0 10px ${c.color}99` } : { boxShadow: `inset 0 0 0 2px ${c.color}` }}
+              style={on ? { background: c.color, boxShadow: `0 0 0 3px ${c.color}40, 0 0 12px ${c.color}` } : { boxShadow: `inset 0 0 0 2px ${c.color}` }}
             />
             {c.name}
-            {withCounts && <span className="text-[11px] font-bold tabular-nums" style={{ color: on ? c.color : undefined }}>{counts[c.id]}</span>}
+            {withCounts && <span className="text-[11px] font-bold tabular-nums" style={{ color: on ? lighten(c.color) : undefined }}>{counts[c.id]}</span>}
           </button>
         );
       })}
@@ -678,17 +678,23 @@ export function OfficeMapApp() {
           ref={panelRef}
           className="contents lg:glass lg:absolute lg:bottom-4 lg:left-4 lg:top-4 lg:z-20 lg:flex lg:w-[440px] lg:flex-col lg:gap-3 lg:rounded-[1.75rem] lg:px-4 lg:pt-4"
         >
+          <span className="scanline hidden lg:block" aria-hidden="true" />
           <header className="order-1 flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-[0.85rem] text-white lg:h-10 lg:w-10 lg:rounded-[0.9rem]" aria-hidden="true">
+              <span className="brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-[0.85rem] lg:h-10 lg:w-10 lg:rounded-[0.9rem]" aria-hidden="true">
                 <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
                   <circle cx="12" cy="10" r="2.4" fill="currentColor" stroke="none" />
                 </svg>
               </span>
               <div className="min-w-0">
-                <p className="text-[9.5px] font-bold uppercase leading-none tracking-[0.28em] text-accent-2">Hanamigawa Care Map</p>
-                <h1 className="mt-0.5 text-[17px] font-extrabold leading-tight tracking-wide">花見川 事業所マップ</h1>
+                <p className="hud-label flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-accent">
+                  <span className="live-dot" aria-hidden="true" />
+                  Hanamigawa <span className="text-accent-2">{"//"}</span> Care Map
+                </p>
+                <h1 className="mt-1 text-[17px] font-bold leading-tight tracking-wide">
+                  花見川 <span className="text-grad">事業所マップ</span>
+                </h1>
                 <p className="truncate text-[11px] text-muted">{subline}</p>
               </div>
             </div>
@@ -723,7 +729,7 @@ export function OfficeMapApp() {
                 type="button"
                 aria-pressed={mode === m.id}
                 onClick={() => changeMode(m.id)}
-                className={`relative z-10 break-keep rounded-[0.65rem] px-1 py-1.5 transition-colors duration-300 ${mode === m.id ? "text-white" : "text-ink/75 hover:text-ink"}`}
+                className={`relative z-10 break-keep rounded-[0.65rem] px-1 py-1.5 transition-colors duration-300 ${mode === m.id ? "text-on-grad" : "text-ink/70 hover:text-accent"}`}
               >
                 {/* どのタブも同じ高さの2行に揃える */}
                 <span className="flex min-h-[2.5em] flex-col items-center justify-center lg:min-h-0 lg:flex-row">
@@ -889,9 +895,10 @@ export function OfficeMapApp() {
 
             {mode === "list" && (
               <>
-                <div className="sticky top-0 z-10 -mx-1 mb-1 flex items-baseline justify-between rounded-b-xl bg-paper/80 px-1.5 pb-1.5 pt-0.5 text-xs text-muted backdrop-blur-md lg:bg-white/55">
+                <div className="sticky top-0 z-10 -mx-1 mb-1 flex items-baseline justify-between rounded-b-xl bg-paper/75 px-1.5 pb-1.5 pt-0.5 text-xs text-muted backdrop-blur-md lg:bg-[#0a1218]/85">
                   <span>
-                    <b className="text-grad text-[20px] font-extrabold tabular-nums">{visible.length.toLocaleString("ja-JP")}</b> 件
+                    <span className="hud-label mr-1.5 text-muted">Results</span>
+                    <b className="text-grad text-[22px] font-bold tabular-nums">{visible.length.toLocaleString("ja-JP")}</b> 件
                   </span>
                   <span className="flex items-center gap-1">
                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -938,7 +945,7 @@ export function OfficeMapApp() {
                   <button
                     type="button"
                     onClick={() => setShown((s) => s + PAGE)}
-                    className="mt-2 w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80"
+                    className="mt-2 w-full rounded-2xl border border-dashed border-accent/30 bg-accent/[0.04] py-2.5 text-sm font-bold text-accent transition-colors hover:bg-accent/10"
                   >
                     さらに表示（残り {(visible.length - shown).toLocaleString("ja-JP")} 件）
                   </button>

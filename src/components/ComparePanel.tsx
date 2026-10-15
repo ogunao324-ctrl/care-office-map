@@ -114,7 +114,7 @@ function SelfCompare({ cat, fresh }: { cat: CompareCat; fresh: DetailRecord[] })
   const s = Number(mine.staff);
   if (mine.users && Number.isFinite(u)) lines.push({ label: "利用者数", v: u, values: fresh.map((d) => usersOf(d)).filter((x): x is number => x != null) });
   if (mine.staff && Number.isFinite(s)) lines.push({ label: "職員数", v: s, values: fresh.map((d) => d.staff?.head).filter((x): x is number => x != null) });
-  const cls = "w-20 rounded-md border border-rule bg-white px-2 py-1 text-right text-base tabular-nums";
+  const cls = "field w-20 rounded-md px-2 py-1 text-right text-base tabular-nums outline-none";
   return (
     <section className="grid gap-1.5 card p-3" aria-label="自社と比べる">
       <h2 className="text-xs text-muted">自社の数字を入れて比べる（この端末にだけ保存）</h2>
@@ -243,7 +243,7 @@ export function ComparePanel({
           </dl>
         )}
         {staleCount > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#eef4f2] px-2.5 py-1.5 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/15 bg-accent/[0.06] px-2.5 py-1.5 text-xs">
             <span className="text-muted">
               記入が2年以上前の{staleCount}か所を{includeStale ? "含めています" : "除いています"}
             </span>
@@ -337,7 +337,7 @@ export function ComparePanel({
           </ol>
         )}
         {ranked.length > shown && (
-          <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80">
+          <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-2xl border border-dashed border-accent/30 bg-accent/[0.04] py-2.5 text-sm font-bold text-accent transition-colors hover:bg-accent/10">
             さらに表示（残り {ranked.length - shown} か所）
           </button>
         )}

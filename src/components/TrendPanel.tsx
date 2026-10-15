@@ -53,13 +53,13 @@ function Sparkline({ points, color, startIndex }: { points: { ym: string; count:
           }}
           onPointerLeave={() => setHover(null)}
         >
-          <line x1={PAD_X} x2={W - PAD_X} y1={H - PAD_Y} y2={H - PAD_Y} stroke="#dde0d8" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <line x1={PAD_X} x2={W - PAD_X} y1={H - PAD_Y} y2={H - PAD_Y} stroke="rgba(255,255,255,0.14)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
           {/* 期間の始まり（数の増減を比べている時点） */}
-          <line x1={x(startIndex)} x2={x(startIndex)} y1={PAD_Y - 2} y2={H - PAD_Y} stroke="#c9cec6" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <path d={area} fill={color} opacity="0.1" />
-          <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          <line x1={x(startIndex)} x2={x(startIndex)} y1={PAD_Y - 2} y2={H - PAD_Y} stroke="rgba(255,255,255,0.22)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <path d={area} fill={color} opacity="0.22" />
+          <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{ filter: `drop-shadow(0 0 3px ${color})` }} />
           {hover != null && (
-            <line x1={x(hover)} x2={x(hover)} y1={PAD_Y - 2} y2={H - PAD_Y} stroke="#5a6560" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+            <line x1={x(hover)} x2={x(hover)} y1={PAD_Y - 2} y2={H - PAD_Y} stroke="rgba(62,232,207,0.7)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
           )}
         </svg>
         <span
@@ -98,7 +98,7 @@ function ChangeRow({
         <span className="self-start whitespace-nowrap text-sm tabular-nums">{formatDistance(c.distance)}</span>
         <span className="col-span-2 flex flex-wrap items-center gap-1 text-xs text-muted">
           <span
-            className={`rounded px-1.5 text-[11px] font-bold leading-relaxed ${gone ? "border border-dashed border-[#7a837f] text-[#5a6560]" : "bg-grad"}`}
+            className={`rounded px-1.5 text-[11px] font-bold leading-relaxed ${gone ? "border border-dashed border-white/35 text-muted" : "bg-grad"}`}
           >
             {CHANGE_LABEL[c.kind]}
           </span>

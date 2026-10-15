@@ -10,8 +10,9 @@ const isDev = process.env.NODE_ENV !== "production";
  * ―― でないと本番でだけ黙って読み込みがブロックされる。
  *
  * 今使っている外部ホスト:
- * - 地図タイル: server.arcgisonline.com（白地図）・cyberjapandata.gsi.go.jp（淡色地図）
- *   src/components/OfficeMap.tsx が <img> で直接読む（つむぐと同じ2つ）
+ * - 地図タイル: server.arcgisonline.com（白地図・夜の地図）・cyberjapandata.gsi.go.jp（淡色地図）
+ *   src/components/OfficeMap.tsx が <img> で直接読む（つむぐと同じ2つのホスト）
+ * - 書体（Space Grotesk・JetBrains Mono）は npm の @fontsource から同じオリジンで配信するので追記不要
  * - 事業所データは public/data/offices.json（同じオリジン）なので追記不要
  * - Googleマップ・電話は「リンクで開く」だけなので CSP の対象外
  */

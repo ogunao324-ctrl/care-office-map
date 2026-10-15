@@ -30,14 +30,14 @@ function staffText(s: Staff | undefined): string {
 /** 記入日が古いときの印 */
 export function StaleBadge({ d, now }: { d: DetailRecord; now: Date }) {
   if (!isStale(d, now)) return null;
-  return <span className="rounded bg-[#f1e9dc] px-1.5 text-[11px] font-bold leading-relaxed text-[#7a4b12]">古い記入</span>;
+  return <span className="rounded-md bg-amber-400/15 px-1.5 text-[11px] font-bold leading-relaxed text-amber-300">古い記入</span>;
 }
 
 /** 特定事業所加算の印（取っていれば区分を出す） */
 export function TokuteiBadge({ d }: { d: DetailRecord }) {
   const t = tokuteiOf(d);
   if (!t.length) return null;
-  return <span className="rounded-md bg-grad px-1.5 text-[11px] font-bold leading-relaxed text-white">特定事業所加算{t.join("・")}</span>;
+  return <span className="rounded-md bg-grad px-1.5 text-[11px] font-bold leading-relaxed">特定事業所加算{t.join("・")}</span>;
 }
 
 export function DetailFacts({
@@ -137,7 +137,7 @@ export function DetailFacts({
               {d.kasan.map((k) => (
                 <li
                   key={k}
-                  className={`rounded px-1.5 text-[11px] leading-relaxed ${k.startsWith("特定事業所") ? "bg-grad font-bold" : "bg-[#eef2f1]"}`}
+                  className={`rounded px-1.5 text-[11px] leading-relaxed ${k.startsWith("特定事業所") ? "bg-grad font-bold" : "bg-white/[0.08]"}`}
                 >
                   {k}
                 </li>

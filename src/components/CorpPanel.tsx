@@ -56,7 +56,7 @@ function SelectedCorp({
       </div>
       <p className="text-sm">
         {radiusKm}km以内に <b>{corp.offices.length}か所</b>・10km圏で {corp.all.length}か所
-        {corp.both && <span className="ml-1.5 rounded bg-[#eef2f1] px-1.5 text-[11px] font-bold">介護＋障害</span>}
+        {corp.both && <span className="ml-1.5 rounded-md bg-white/[0.08] px-1.5 text-[11px] font-bold">介護＋障害</span>}
       </p>
       <p className="text-xs text-muted">
         <CatCounts byCat={corp.byCat} />
@@ -64,7 +64,7 @@ function SelectedCorp({
       <ol className="grid gap-1 border-t border-rule pt-2">
         {corp.all.map((o) => (
           <li key={o.id}>
-            <button type="button" onClick={() => onOpenOffice(o.id)} className="grid w-full grid-cols-[1fr_auto] gap-x-2 rounded-md px-1 py-1 text-left hover:bg-[#f3f5f2]">
+            <button type="button" onClick={() => onOpenOffice(o.id)} className="grid w-full grid-cols-[1fr_auto] gap-x-2 rounded-md px-1 py-1 text-left hover:bg-white/[0.06]">
               <span className="min-w-0 break-words text-[13px] font-bold">{o.name}</span>
               <span className="whitespace-nowrap text-xs tabular-nums text-muted">{formatDistance(o.distance)}</span>
               <span className="col-span-2 flex flex-wrap gap-1">
@@ -173,7 +173,7 @@ export function CorpPanel({
                   <span />
                   <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
                     <span>{CORP_TYPE_LABEL[c.type].replace(/（.*）/, "")}</span>
-                    {c.both && <span className="rounded bg-[#eef2f1] px-1.5 text-[11px] font-bold text-ink">介護＋障害</span>}
+                    {c.both && <span className="rounded-md bg-white/[0.08] px-1.5 text-[11px] font-bold text-ink">介護＋障害</span>}
                     <CatCounts byCat={c.byCat} />
                     <span>最寄り {formatDistance(c.nearest)}</span>
                     {c.all.length > c.offices.length && <span>（10km圏で{c.all.length}か所）</span>}
@@ -187,7 +187,7 @@ export function CorpPanel({
           <button
             type="button"
             onClick={() => setShown((s) => s + SHOW)}
-            className="w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80"
+            className="w-full rounded-2xl border border-dashed border-accent/30 bg-accent/[0.04] py-2.5 text-sm font-bold text-accent transition-colors hover:bg-accent/10"
           >
             さらに表示（残り {land.corps.length - shown} 法人）
           </button>

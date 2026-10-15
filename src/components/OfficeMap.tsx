@@ -10,6 +10,9 @@
  * - 白地図には地名が無いので、主要駅・区の名前をつむぐと同じ控えめなラベルで重ねる
  *   （src/lib/landmarks.ts、つむぐの写し）。駅は拡大したときだけ出す。
  * - 「淡色」に切り替えると国土地理院の淡色地図（地名入り）。こちらはラベルを重ねない。
+ * - 「夜」は白地図の暗い版（Esri World Dark Gray Base、同じホスト）。駅・区の名前は暗い札で重ねる。
+ *   選んだ地図はその端末に覚えておく（既定は白地図）。
+ * - PC では見えている部分の左下に、地図の真ん中の緯度経度と拡大の度合いを小さく出す（飾りを兼ねた目安）。
  * - 事業所の点は canvas でまとめて描く（千件でも軽い）。点の色＝サービスの種類。
  *   縁取りは白で統一（2色の縁取りはごちゃつくのでやめた）。
  * - 同じ場所に複数の事業所があるときは、少し大きい点を1つだけ描き、
@@ -29,7 +32,8 @@ import { CHIBA_LANDMARKS } from "@/lib/landmarks";
 import { meshBounds, meshCodeAt } from "@/lib/mesh";
 import type { LatLng } from "@/lib/offices";
 
-type TileStyle = "white" | "pale";
+type TileStyle = "white" | "pale" | "night";
+const TILE_KEY = "care-office-map:tile";
 
 const TILES: Record<TileStyle, { url: string; label: string; attribution: string; maxNativeZoom: number }> = {
   white: {
@@ -45,6 +49,20 @@ const TILES: Record<TileStyle, { url: string; label: string; attribution: string
     attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>',
     maxNativeZoom: 18,
   },
+  night: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    label: "夜",
+    attribution:
+      '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, HERE, Garmin, &copy; OpenStreetMap',
+    maxNativeZoom: 16,
+  },
+};
+
+/** 地図の種類ごとの線の色（明るい地図には濃い青緑、夜の地図にはネオン） */
+const INK: Record<TileStyle, { ring: string; sel: string; selGlow: string; cell: string; newEdge: string }> = {
+  white: { ring: "#0f766e", sel: "#0f766e", selGlow: "#14b8a6", cell: "#15211e", newEdge: "#15211e" },
+  pale: { ring: "#0f766e", sel: "#0f766e", selGlow: "#14b8a6", cell: "#15211e", newEdge: "#15211e" },
+  night: { ring: "#2ef2d0", sel: "#ffffff", selGlow: "#2ef2d0", cell: "#ffffff", newEdge: "#ffffff" },
 };
 
 export type MapPoint = {
@@ -88,10 +106,10 @@ type Props = {
 };
 
 const SELF_ICON_HTML =
-  '<div class="pin"><i class="pulse"></i><i class="pulse late"></i><svg viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="self-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15403f"></stop><stop offset="0.5" stop-color="#1d5d66"></stop><stop offset="1" stop-color="#2a9d8f"></stop></linearGradient></defs><circle cx="14" cy="14" r="12" fill="url(#self-grad)" stroke="#fff" stroke-width="2.5"></circle><path d="M8.5 14.5 14 9.5l5.5 5v5.5h-3.6v-3.8h-3.8V20H8.5z" fill="#fff"></path></svg><span class="tag">自社</span></div>';
+  '<div class="pin"><i class="pulse"></i><i class="pulse late"></i><svg viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="self-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ef2d0"></stop><stop offset="0.52" stop-color="#38bdf8"></stop><stop offset="1" stop-color="#8b7bff"></stop></linearGradient></defs><circle cx="14" cy="14" r="12" fill="url(#self-grad)" stroke="#03141a" stroke-width="2"></circle><path d="M8.5 14.5 14 9.5l5.5 5v5.5h-3.6v-3.8h-3.8V20H8.5z" fill="#03141a"></path></svg><span class="tag">自社</span></div>';
 
 /** 拡大・縮小のボタン */
-const CTRL = "grid h-9 w-9 place-items-center text-ink transition-colors hover:bg-white";
+const CTRL = "grid h-9 w-9 place-items-center text-ink transition-colors hover:bg-white/10 hover:text-accent";
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
@@ -130,6 +148,27 @@ export function OfficeMap({
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(14);
   const [tileStyle, setTileStyle] = useState<TileStyle>("white");
+  const [view, setView] = useState<{ lat: number; lng: number } | null>(null);
+  const ink = INK[tileStyle];
+
+  // 前に選んだ地図の種類（端末に保存。読めなくても白地図で動く）
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(TILE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 保存値の読み出しは描画後にしかできない
+      if (v === "white" || v === "pale" || v === "night") setTileStyle(v);
+    } catch {
+      // 保存できない端末では毎回白地図
+    }
+  }, []);
+  const chooseTile = (k: TileStyle) => {
+    setTileStyle(k);
+    try {
+      localStorage.setItem(TILE_KEY, k);
+    } catch {
+      // 保存できなくても切り替えは効く
+    }
+  };
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -197,11 +236,22 @@ export function OfficeMap({
         zIndexOffset: 1000,
       }).addTo(map);
       map.on("zoomend", () => setZoom(map.getZoom()));
+      // 真ん中の緯度経度（PC の左下の表示用）。動かしている間は1コマに1回だけ
+      let raf = 0;
+      const syncView = () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          const c = map.getCenter();
+          setView({ lat: c.lat, lng: c.lng });
+        });
+      };
+      map.on("move", syncView);
       // マスは点の下の別の層にあって直接は押せないので、地図を押した位置からマスの番号を出す
       map.on("click", (e: Leaflet.LeafletMouseEvent) => onCellSelectRef.current?.(meshCodeAt(e.latlng.lat, e.latlng.lng)));
       mapRef.current = map;
       fitCircle();
       setZoom(map.getZoom());
+      syncView();
       setReady(true);
     });
     return () => {
@@ -242,7 +292,7 @@ export function OfficeMap({
     const layer = landmarkLayerRef.current;
     if (!ready || !L || !layer) return;
     layer.clearLayers();
-    if (tileStyle !== "white") return;
+    if (tileStyle === "pale") return;
     for (const item of CHIBA_LANDMARKS) {
       let html: string;
       let className: string;
@@ -274,6 +324,11 @@ export function OfficeMap({
       }).addTo(layer);
     }
   }, [ready, tileStyle, zoom]);
+
+  // 範囲の円の色（地図の種類に合わせる）
+  useEffect(() => {
+    if (ready) circleRef.current?.setStyle({ color: ink.ring, opacity: tileStyle === "night" ? 0.9 : 0.7 });
+  }, [ready, ink.ring, tileStyle]);
 
   // 中心・半径
   useEffect(() => {
@@ -335,9 +390,11 @@ export function OfficeMap({
     if (!focusCell) return;
     const b = meshBounds(focusCell.code);
     const bounds = L.latLngBounds([b.south, b.west], [b.north, b.east]);
-    focusCellRef.current = L.rectangle(bounds, { color: "#15211e", weight: 2.5, fill: false, interactive: false }).addTo(map);
+    focusCellRef.current = L.rectangle(bounds, { color: ink.cell, weight: 2.5, fill: false, interactive: false }).addTo(map);
     const c = bounds.getCenter();
     flyVisible(c.lat, c.lng, Math.max(map.getZoom(), 14));
+    // 地図の種類を替えたときに飛び直さないよう、色は作ったときのものを使う
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusCell, flyVisible]);
 
   // 事業所の点
@@ -369,7 +426,7 @@ export function OfficeMap({
           : p.style === "gone"
           ? { renderer, radius: size, fillColor: "#ffffff", fillOpacity: 1, color: "#7a837f", weight: 2, dashArray: "3 2" }
           : p.style === "new"
-            ? { renderer, radius: size + 1, fillColor: p.color, fillOpacity: 0.95, color: "#15211e", weight: 2.5 }
+            ? { renderer, radius: size + 1, fillColor: p.color, fillOpacity: 0.95, color: ink.newEdge, weight: 2.5 }
             : { renderer, radius: size, fillColor: p.color, fillOpacity: 0.9, color: "#ffffff", weight: 1.5 };
       // 点を押したときに地図の click（マスの選択）まで届かないようにする
       const m = L.circleMarker([p.lat, p.lng], { ...opts, bubblingMouseEvents: false });
@@ -384,8 +441,8 @@ export function OfficeMap({
         radius: r * ((selected as MapPoint).scale ?? 1) + 8,
         weight: 5,
         fill: false,
-        color: "#2a9d8f",
-        opacity: 0.35,
+        color: ink.selGlow,
+        opacity: 0.4,
         interactive: false,
       }).addTo(layer);
       L.circleMarker([selected.lat, selected.lng], {
@@ -393,24 +450,40 @@ export function OfficeMap({
         radius: r * ((selected as MapPoint).scale ?? 1) + 4,
         weight: 2.5,
         fill: false,
-        color: "#1d5d66",
+        color: ink.sel,
         interactive: false,
       }).addTo(layer);
     }
-  }, [ready, points, selectedId, zoom]);
+  }, [ready, points, selectedId, zoom, ink]);
 
   return (
-    <div className={`relative isolate h-full w-full overflow-hidden ${className}`}>
+    <div className={`relative isolate h-full w-full overflow-hidden ${tileStyle === "night" ? "map-night" : "map-white"} ${className}`}>
       <div ref={boxRef} className="absolute inset-0" aria-label="事業所の地図" />
+      {/* スマホ：地図の四隅に HUD の括弧 */}
+      <div className="hud-corners z-[700] lg:hidden" aria-hidden="true" />
+      {/* PC：見えている部分の左下に、真ん中の緯度経度と拡大の度合い */}
+      {view && (
+        <div
+          className="glass pointer-events-none absolute bottom-4 z-[800] hidden items-center gap-2 rounded-full px-3 py-1 font-mono text-[10.5px] tabular-nums tracking-wider text-muted lg:flex"
+          style={{ left: insets.left + 16 }}
+          aria-hidden="true"
+        >
+          <span className="live-dot" />
+          <span className="text-accent">{view.lat.toFixed(4)}°N</span>
+          <span>{view.lng.toFixed(4)}°E</span>
+          <span className="text-ink/40">|</span>
+          <span>Z{zoom.toFixed(1)}</span>
+        </div>
+      )}
       {/* スマホ：左上に地図の切り替え・右上に拡大縮小・左下に範囲全体。PC：右下にまとめる（左と上はパネルが重なるため） */}
       <div className="glass absolute left-3 top-3 z-[800] flex rounded-full p-0.5 text-xs font-bold lg:bottom-[10.25rem] lg:left-auto lg:right-4 lg:top-auto">
         {(Object.keys(TILES) as TileStyle[]).map((k) => (
           <button
             key={k}
             type="button"
-            onClick={() => setTileStyle(k)}
+            onClick={() => chooseTile(k)}
             aria-pressed={tileStyle === k}
-            className={`rounded-full px-3 py-1 transition-colors ${tileStyle === k ? "bg-grad" : "text-ink hover:bg-white/70"}`}
+            className={`rounded-full px-3 py-1 transition-colors ${tileStyle === k ? "bg-grad" : "text-ink hover:bg-white/10"}`}
           >
             {TILES[k].label}
           </button>
@@ -433,7 +506,7 @@ export function OfficeMap({
         <button
           type="button"
           onClick={fitCircle}
-          className="glass absolute bottom-3 left-3 z-[800] flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:bg-white! lg:bottom-[7.25rem] lg:left-auto lg:right-4"
+          className="glass absolute bottom-3 left-3 z-[800] flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:text-accent lg:bottom-[7.25rem] lg:left-auto lg:right-4"
         >
           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
