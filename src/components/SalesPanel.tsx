@@ -15,7 +15,7 @@ import { shortageStep, type GapCell } from "@/lib/areas";
 import { digitsOnly, formatDistance, type CategoryId, type LatLng } from "@/lib/offices";
 import { MAX_WAYPOINTS, orderStops, routeUrl } from "@/lib/route";
 import type { Row } from "./OfficeList";
-import { ACT, Note, PickChips } from "./ui";
+import { ACT, ACT_MAIN, Note, PickChips } from "./ui";
 
 export type SalesItem = { office: Row; cell: GapCell };
 export type SalesSort = "short" | "near";
@@ -121,7 +121,7 @@ export function SalesPanel({
               <li
                 key={o.id}
                 id={`sales-${o.id}`}
-                className={`grid gap-1 rounded-lg border bg-white px-3 py-2 ${highlightId === o.id ? "border-ink ring-1 ring-ink" : on ? "border-accent" : "border-rule"}`}
+                className={`card card-hover grid gap-1 px-3 py-2 ${highlightId === o.id ? "card-on" : on ? "border-accent/50" : ""}`}
               >
                 <div className="grid grid-cols-[auto_1fr_auto] items-start gap-x-2.5">
                   <button
@@ -131,7 +131,7 @@ export function SalesPanel({
                     aria-label={`${o.name}を道順に入れる`}
                     disabled={!on && full}
                     onClick={() => onToggle(o.id)}
-                    className={`mt-0.5 grid h-6 w-6 place-items-center rounded-md border-2 text-sm font-bold ${on ? "border-accent bg-accent text-white" : "border-rule bg-white text-transparent"} disabled:opacity-40`}
+                    className={`mt-0.5 grid h-6 w-6 place-items-center rounded-md border-2 text-sm font-bold ${on ? "border-transparent bg-grad" : "border-rule bg-white text-transparent"} disabled:opacity-40`}
                   >
                     ✓
                   </button>
@@ -170,13 +170,13 @@ export function SalesPanel({
         </ol>
       )}
       {items.length > shown && (
-        <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-lg border border-dashed border-rule py-2.5 text-sm text-muted">
+        <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80">
           さらに表示（残り {items.length - shown} か所）
         </button>
       )}
 
       {selected.length > 0 && (
-        <div className="sticky bottom-0 z-10 grid gap-1.5 rounded-xl border border-ink bg-white px-3 py-2 shadow-sm">
+        <div className="sticky bottom-0 z-10 grid gap-1.5 card card-hero px-3 py-2 shadow-sm">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
             <b>{chosen.length}か所を選択中</b>
             <label className="flex items-center gap-1 text-xs">
@@ -189,7 +189,7 @@ export function SalesPanel({
           </div>
           <div className="flex flex-wrap gap-1.5">
             {url && (
-              <a className={`${ACT} border-accent bg-accent text-white`} target="_blank" rel="noopener" href={url}>
+              <a className={`${ACT} ${ACT_MAIN}`} target="_blank" rel="noopener" href={url}>
                 道順を開く（Googleマップ）
               </a>
             )}

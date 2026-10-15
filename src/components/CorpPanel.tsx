@@ -44,13 +44,13 @@ function SelectedCorp({
   onOpenOffice: (id: string) => void;
 }) {
   return (
-    <section className="grid gap-2 rounded-xl border border-ink bg-white p-3">
+    <section className="grid gap-2 card card-hero p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="break-words text-[15px] font-bold leading-snug">{corp.name}</h2>
           <p className="text-xs text-muted">{CORP_TYPE_LABEL[corp.type]}</p>
         </div>
-        <button type="button" onClick={onClose} className="shrink-0 rounded-full border border-rule px-2.5 py-0.5 text-xs">
+        <button type="button" onClick={onClose} className="chip shrink-0 px-2.5 py-0.5 text-xs">
           閉じる
         </button>
       </div>
@@ -105,7 +105,7 @@ export function CorpPanel({
         <SelectedCorp corp={selected} radiusKm={radiusKm} onClose={() => onSelectCorp(null)} onOpenOffice={onOpenOffice} />
       )}
 
-      <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3">
+      <section className="grid gap-1.5 card p-3">
         <h2 className="text-xs text-muted">自社から{radiusKm}km以内</h2>
         <p className="text-[15px] font-bold leading-snug">
           {fmtInt(land.corps.length)}法人が {fmtInt(counted)}か所
@@ -126,15 +126,15 @@ export function CorpPanel({
       </section>
 
       {land.byType.length > 0 && (
-        <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3" aria-label="法人の種類">
+        <section className="grid gap-1.5 card p-3" aria-label="法人の種類">
           <h2 className="text-xs text-muted">法人の種類（事業所の数）</h2>
           {/* 行をまたいで棒の始まりが揃うよう、1つの表の形（grid）に並べる */}
           <ul className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1.5 text-[13px]">
             {land.byType.map((t) => (
               <li key={t.type} className="contents">
                 <span className="truncate">{CORP_TYPE_LABEL[t.type].replace(/（.*）/, "")}</span>
-                <span className="h-2 overflow-hidden rounded-full bg-[#eef2f1]">
-                  <span className="block h-full rounded-full bg-ink" style={{ width: `${(t.offices / Math.max(1, counted)) * 100}%` }} />
+                <span className="h-2 overflow-hidden rounded-full bg-ink/[0.06]">
+                  <span className="block h-full rounded-full bar-fill" style={{ width: `${(t.offices / Math.max(1, counted)) * 100}%` }} />
                 </span>
                 <span className="whitespace-nowrap text-xs tabular-nums">
                   <b>{t.offices}</b>か所・{t.corps}法人（{pct(t.offices / Math.max(1, counted))}）
@@ -159,7 +159,7 @@ export function CorpPanel({
                 <button
                   type="button"
                   onClick={() => onSelectCorp(selected?.key === c.key ? null : c.key)}
-                  className={`grid w-full grid-cols-[1.5em_1fr_auto] items-baseline gap-x-2 gap-y-1 rounded-lg border bg-white px-3 py-2 text-left ${selected?.key === c.key ? "border-ink" : "border-rule"}`}
+                  className={`grid w-full grid-cols-[1.5em_1fr_auto] items-baseline gap-x-2 gap-y-1 card card-hover px-3 py-2 text-left ${selected?.key === c.key ? "card-on" : ""}`}
                 >
                   <span className="text-xs tabular-nums text-muted">{i + 1}</span>
                   <span className="min-w-0 break-words text-[14px] font-bold leading-snug">{c.name}</span>
@@ -167,8 +167,8 @@ export function CorpPanel({
                     <b>{c.offices.length}</b>か所
                   </span>
                   <span />
-                  <span className="col-span-2 h-1.5 overflow-hidden rounded-full bg-[#eef2f1]">
-                    <span className="block h-full rounded-full bg-ink" style={{ width: `${(c.offices.length / max) * 100}%` }} />
+                  <span className="col-span-2 h-1.5 overflow-hidden rounded-full bg-ink/[0.06]">
+                    <span className="block h-full rounded-full bar-fill" style={{ width: `${(c.offices.length / max) * 100}%` }} />
                   </span>
                   <span />
                   <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
@@ -187,7 +187,7 @@ export function CorpPanel({
           <button
             type="button"
             onClick={() => setShown((s) => s + SHOW)}
-            className="w-full rounded-lg border border-dashed border-rule py-2.5 text-sm text-muted"
+            className="w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80"
           >
             さらに表示（残り {land.corps.length - shown} 法人）
           </button>

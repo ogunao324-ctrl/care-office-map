@@ -68,7 +68,7 @@ export function GapPanel({
   return (
     <div className="grid gap-2.5">
       {selectedCell && (
-        <section className="grid gap-1 rounded-xl border border-ink bg-white p-3">
+        <section className="grid gap-1 card card-hero p-3">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="min-w-0 break-words text-[15px] font-bold">{selectedCell.n ? `${selectedCell.n}付近` : "このマス"}</h2>
             <span className="shrink-0 text-xs text-muted">自社から{formatDistance(selectedCell.distance)}</span>
@@ -78,7 +78,7 @@ export function GapPanel({
         </section>
       )}
 
-      <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3">
+      <section className="grid gap-1.5 card p-3">
         <h2 className="text-xs text-muted">自社のまわり（半径{GAP_RADIUS_KM}km）</h2>
         {selfCell ? (
           <>
@@ -94,7 +94,7 @@ export function GapPanel({
         )}
       </section>
 
-      <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3" aria-label="地図の色の見方">
+      <section className="grid gap-1.5 card p-3" aria-label="地図の色の見方">
         <h2 className="text-xs text-muted">
           地図の色：{colorMode === "short" ? `${catName}の足りなさ（10km圏の平均と比べて）` : `500m四方ごとの${DEMAND_LABEL[base]}の人数`}
         </h2>
@@ -136,7 +136,7 @@ export function GapPanel({
                 <button
                   type="button"
                   onClick={() => onPickCell(g.c)}
-                  className={`grid w-full grid-cols-[auto_1fr_auto] items-baseline gap-x-2 rounded-lg border bg-white px-3 py-2 text-left ${selectedCell?.c === g.c ? "border-ink" : "border-rule"}`}
+                  className={`grid w-full grid-cols-[auto_1fr_auto] items-baseline gap-x-2 card card-hover px-3 py-2 text-left ${selectedCell?.c === g.c ? "card-on" : ""}`}
                 >
                   <span className="text-xs tabular-nums text-muted">{i + 1}</span>
                   <span className="min-w-0 break-words text-[14px] font-bold">{g.n ? `${g.n}付近` : "名前のない場所"}</span>

@@ -72,14 +72,14 @@ function Shares({ title, rows, note }: { title: string; rows: { name: string; co
   if (!rows.length) return null;
   const list = all ? rows : rows.slice(0, 8);
   return (
-    <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3" aria-label={title}>
+    <section className="grid gap-1.5 card p-3" aria-label={title}>
       <h2 className="text-xs text-muted">{title}</h2>
       <ul className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto] items-center gap-x-2 gap-y-1.5 text-[13px]">
         {list.map((r) => (
           <li key={r.name} className="contents">
             <span className={`break-words leading-snug ${r.name.startsWith("特定事業所") ? "font-bold" : ""}`}>{r.name}</span>
-            <span className="h-2 overflow-hidden rounded-full bg-[#eef2f1]">
-              <span className="block h-full rounded-full bg-ink" style={{ width: `${(r.count / Math.max(1, r.of)) * 100}%` }} />
+            <span className="h-2 overflow-hidden rounded-full bg-ink/[0.06]">
+              <span className="block h-full rounded-full bar-fill" style={{ width: `${(r.count / Math.max(1, r.of)) * 100}%` }} />
             </span>
             <span className="whitespace-nowrap text-xs tabular-nums">
               <b>{r.count}</b>/{r.of}（{pct(r.count, r.of)}）
@@ -116,7 +116,7 @@ function SelfCompare({ cat, fresh }: { cat: CompareCat; fresh: DetailRecord[] })
   if (mine.staff && Number.isFinite(s)) lines.push({ label: "職員数", v: s, values: fresh.map((d) => d.staff?.head).filter((x): x is number => x != null) });
   const cls = "w-20 rounded-md border border-rule bg-white px-2 py-1 text-right text-base tabular-nums";
   return (
-    <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3" aria-label="自社と比べる">
+    <section className="grid gap-1.5 card p-3" aria-label="自社と比べる">
       <h2 className="text-xs text-muted">自社の数字を入れて比べる（この端末にだけ保存）</h2>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
         <label className="flex items-center gap-1.5">
@@ -202,7 +202,7 @@ export function ComparePanel({
 
   return (
     <div className="grid gap-2.5">
-      <section className="grid gap-1.5 rounded-xl border border-rule bg-white p-3">
+      <section className="grid gap-1.5 card p-3">
         <h2 className="text-xs text-muted">自社から{radiusKm}km以内の{info.name}</h2>
         <p className="text-[15px] font-bold leading-snug">
           {items.length}か所・数字が分かるのは {withData.length}か所
@@ -243,7 +243,7 @@ export function ComparePanel({
           </dl>
         )}
         {staleCount > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f3f5f2] px-2.5 py-1.5 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#eef4f2] px-2.5 py-1.5 text-xs">
             <span className="text-muted">
               記入が2年以上前の{staleCount}か所を{includeStale ? "含めています" : "除いています"}
             </span>
@@ -285,7 +285,7 @@ export function ComparePanel({
               const page = x.office.kaigoPages?.find((p) => p.code === info.code);
               const users = usersOf(d);
               return (
-                <li key={x.office.id} id={`cmp-${x.office.id}`} className={`rounded-lg border bg-white ${open ? "border-ink" : "border-rule"}`}>
+                <li key={x.office.id} id={`cmp-${x.office.id}`} className={`card card-hover ${open ? "card-on" : ""}`}>
                   <button
                     type="button"
                     onClick={() => onSelect(x.office.id)}
@@ -298,9 +298,9 @@ export function ComparePanel({
                     {metric !== "start" && (
                       <>
                         <span />
-                        <span className="col-span-2 h-1.5 overflow-hidden rounded-full bg-[#eef2f1]">
+                        <span className="col-span-2 h-1.5 overflow-hidden rounded-full bg-ink/[0.06]">
                           <span
-                            className={`block h-full rounded-full ${v < 0 ? "bg-[#b45309]" : "bg-ink"}`}
+                            className={`block h-full rounded-full ${v < 0 ? "bg-linear-to-r from-[#b45309] to-[#f59e0b]" : "bar-fill"}`}
                             style={{ width: `${(Math.abs(v) / max) * 100}%` }}
                           />
                         </span>
@@ -337,14 +337,14 @@ export function ComparePanel({
           </ol>
         )}
         {ranked.length > shown && (
-          <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-lg border border-dashed border-rule py-2.5 text-sm text-muted">
+          <button type="button" onClick={() => setShown((s) => s + SHOW)} className="w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80">
             さらに表示（残り {ranked.length - shown} か所）
           </button>
         )}
       </section>
 
       {noData.length > 0 && (
-        <details className="rounded-xl border border-rule bg-white p-3 text-[13px]">
+        <details className="card p-3 text-[13px]">
           <summary className="cursor-pointer text-xs text-muted">数字の分からない事業所 {noData.length}か所</summary>
           <ul className="mt-1.5 grid gap-0.5">
             {noData.map((x) => (

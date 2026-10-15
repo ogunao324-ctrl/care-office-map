@@ -37,7 +37,7 @@ export function StaleBadge({ d, now }: { d: DetailRecord; now: Date }) {
 export function TokuteiBadge({ d }: { d: DetailRecord }) {
   const t = tokuteiOf(d);
   if (!t.length) return null;
-  return <span className="rounded bg-ink px-1.5 text-[11px] font-bold leading-relaxed text-white">特定事業所加算{t.join("・")}</span>;
+  return <span className="rounded-md bg-grad px-1.5 text-[11px] font-bold leading-relaxed text-white">特定事業所加算{t.join("・")}</span>;
 }
 
 export function DetailFacts({
@@ -137,7 +137,7 @@ export function DetailFacts({
               {d.kasan.map((k) => (
                 <li
                   key={k}
-                  className={`rounded px-1.5 text-[11px] leading-relaxed ${k.startsWith("特定事業所") ? "bg-ink font-bold text-white" : "bg-[#eef2f1]"}`}
+                  className={`rounded px-1.5 text-[11px] leading-relaxed ${k.startsWith("特定事業所") ? "bg-grad font-bold" : "bg-[#eef2f1]"}`}
                 >
                   {k}
                 </li>

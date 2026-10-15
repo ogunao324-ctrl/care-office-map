@@ -27,8 +27,8 @@ export function SearchJump({ rows, onPick, autoFocus }: { rows: Row[]; onPick: (
 
   return (
     <div className="relative">
-      <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3">
-        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <label className="field flex items-center gap-2 px-3">
+        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
         </svg>
@@ -41,29 +41,29 @@ export function SearchJump({ rows, onPick, autoFocus }: { rows: Row[]; onPick: (
           onChange={(e) => setQuery(e.target.value)}
           placeholder="事業所名・法人名・住所・電話番号"
           aria-label="事業所を検索"
-          className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none"
+          className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none placeholder:text-muted/70"
         />
         {query && (
-          <button type="button" onClick={() => setQuery("")} className="shrink-0 text-sm text-muted" aria-label="検索語を消す">
+          <button type="button" onClick={() => setQuery("")} className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink/8 text-sm text-muted hover:bg-ink/15" aria-label="検索語を消す">
             ×
           </button>
         )}
       </label>
       {query.trim() && (
-        <div className="absolute inset-x-0 top-full z-[1100] mt-1 max-h-[60vh] overflow-y-auto rounded-lg border border-ink bg-white shadow-md">
+        <div className="absolute inset-x-0 top-full z-[1100] mt-1 max-h-[60vh] overflow-y-auto rounded-2xl glass bg-white/95!">
           {hits.list.length === 0 ? (
             <p className="px-3 py-3 text-sm text-muted">見つかりませんでした。</p>
           ) : (
             <ul>
               {hits.list.map((o) => (
-                <li key={o.id} className="border-b border-rule last:border-b-0">
+                <li key={o.id} className="border-b border-ink/[0.06] last:border-b-0">
                   <button
                     type="button"
                     onClick={() => {
                       setQuery("");
                       onPick(o.id);
                     }}
-                    className="grid w-full grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 px-3 py-2 text-left hover:bg-[#f3f5f2]"
+                    className="grid w-full grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 px-3 py-2 text-left transition-colors hover:bg-accent/[0.06]"
                   >
                     <span className="min-w-0 break-words text-[14px] font-bold leading-snug">{o.name}</span>
                     <span className="whitespace-nowrap text-xs tabular-nums text-muted">{o.self ? "自社" : formatDistance(o.distance)}</span>

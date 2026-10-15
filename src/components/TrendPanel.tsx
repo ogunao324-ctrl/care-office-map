@@ -15,7 +15,7 @@ import {
   type HistoryData,
 } from "@/lib/history";
 import { CATEGORIES, formatDistance, type CategoryId, type LatLng } from "@/lib/offices";
-import { Note, ServiceChip } from "./ui";
+import { ACT, Note, ServiceChip } from "./ui";
 
 /** 推移の小さな折れ線（1種類だけなので凡例は付けず、見出しが種類を表す） */
 function Sparkline({ points, color, startIndex }: { points: { ym: string; count: number }[]; color: string; startIndex: number }) {
@@ -92,13 +92,13 @@ function ChangeRow({
 }) {
   const gone = c.kind === "closed" || c.kind === "dropped";
   return (
-    <li id={`chg-${c.key}`} className={`rounded-lg border bg-white ${selected ? "border-accent ring-1 ring-accent" : "border-rule"}`}>
+    <li id={`chg-${c.key}`} className={`card card-hover ${selected ? "card-on" : ""}`}>
       <button type="button" onClick={onSelect} className="grid w-full grid-cols-[1fr_auto] gap-x-2.5 gap-y-0.5 px-3 py-2.5 text-left">
         <span className="min-w-0 break-words text-[15px] font-bold leading-snug">{c.name}</span>
         <span className="self-start whitespace-nowrap text-sm tabular-nums">{formatDistance(c.distance)}</span>
         <span className="col-span-2 flex flex-wrap items-center gap-1 text-xs text-muted">
           <span
-            className={`rounded px-1.5 text-[11px] font-bold leading-relaxed ${gone ? "border border-dashed border-[#7a837f] text-[#5a6560]" : "bg-ink text-white"}`}
+            className={`rounded px-1.5 text-[11px] font-bold leading-relaxed ${gone ? "border border-dashed border-[#7a837f] text-[#5a6560]" : "bg-grad"}`}
           >
             {CHANGE_LABEL[c.kind]}
           </span>
@@ -114,7 +114,7 @@ function ChangeRow({
             {ymLabel(c.from)}の公表データには{gone ? "あり" : "なし"}、{ymLabel(c.to)}には{gone ? "なし" : "あり"}
           </span>
           {hasCurrent && (
-            <button type="button" onClick={onOpenOffice} className="rounded-lg border border-rule bg-[#eef2f1] px-2.5 py-1 text-[12px] font-bold text-ink">
+            <button type="button" onClick={onOpenOffice} className={`${ACT} py-1 text-[12px]`}>
               事業所の詳細を見る
             </button>
           )}
@@ -183,7 +183,7 @@ export function TrendPanel({
             const before = series[S]?.count ?? now;
             const diff = now - before;
             return (
-              <section key={cat.id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 rounded-xl border border-rule bg-white p-3">
+              <section key={cat.id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 card p-3">
                 <div className="grid gap-0.5">
                   <h3 className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: cat.color }} />

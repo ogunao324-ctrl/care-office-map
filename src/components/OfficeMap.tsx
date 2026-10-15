@@ -17,9 +17,12 @@
  * - 点の色や形は画面側（OfficeMapApp）が決めて points で渡す。
  *   「競合の動き」では新しく載った事業所を濃い縁取り、載らなくなった事業所を白抜きの灰色で描く。
  * - 「需要と競合」では、500m 四方のマス（cells）を色で塗って事業所の下に重ねる。
+ * - PC では地図を画面いっぱいに敷き、その上にパネルを浮かせる。パネルに隠れる分（insets）を除いた
+ *   「見えている部分」に範囲の円や選んだ事業所が収まるように寄せる。
+ * - 拡大・縮小・地図の切り替え・範囲全体のボタンは自前（すりガラスの見た目に揃えるため）。
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CHIBA_LANDMARKS } from "@/lib/landmarks";
@@ -57,6 +60,10 @@ export type MapPoint = {
 
 export type CellOverlay = { code: string; color: string; opacity: number };
 
+/** 地図の上に重なっているパネルの分（px）。そこを除いた部分に寄せる */
+export type MapInsets = { top: number; right: number; bottom: number; left: number };
+const NO_INSETS: MapInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
 type Props = {
   center: LatLng & { label: string };
   radiusKm: number;
@@ -74,10 +81,17 @@ type Props = {
   focus: { lat: number; lng: number; token: number } | null;
   /** 値が変わるたびに、これらの点が全部入るように合わせる（選んだ法人の事業所など） */
   fitPoints?: { points: LatLng[]; token: number } | null;
+  /** 地図の上に重なっているパネルの分 */
+  insets?: MapInsets;
+  /** 外枠の見た目（角の丸めなど） */
+  className?: string;
 };
 
 const SELF_ICON_HTML =
-  '<div class="pin"><svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12" fill="#1d5d66" stroke="#fff" stroke-width="2.5"></circle><path d="M8.5 14.5 14 9.5l5.5 5v5.5h-3.6v-3.8h-3.8V20H8.5z" fill="#fff"></path></svg><span>自社</span></div>';
+  '<div class="pin"><i class="pulse"></i><i class="pulse late"></i><svg viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="self-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15403f"></stop><stop offset="0.5" stop-color="#1d5d66"></stop><stop offset="1" stop-color="#2a9d8f"></stop></linearGradient></defs><circle cx="14" cy="14" r="12" fill="url(#self-grad)" stroke="#fff" stroke-width="2.5"></circle><path d="M8.5 14.5 14 9.5l5.5 5v5.5h-3.6v-3.8h-3.8V20H8.5z" fill="#fff"></path></svg><span class="tag">自社</span></div>';
+
+/** 拡大・縮小のボタン */
+const CTRL = "grid h-9 w-9 place-items-center text-ink transition-colors hover:bg-white";
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
@@ -95,6 +109,8 @@ export function OfficeMap({
   fitToken,
   focus,
   fitPoints,
+  insets = NO_INSETS,
+  className = "",
 }: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const LRef = useRef<typeof Leaflet | null>(null);
@@ -110,6 +126,7 @@ export function OfficeMap({
   const circleRef = useRef<Leaflet.Circle | null>(null);
   const selfRef = useRef<Leaflet.Marker | null>(null);
   const onSelectRef = useRef(onSelect);
+  const insetsRef = useRef(insets);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(14);
   const [tileStyle, setTileStyle] = useState<TileStyle>("white");
@@ -117,7 +134,30 @@ export function OfficeMap({
   useEffect(() => {
     onSelectRef.current = onSelect;
     onCellSelectRef.current = onCellSelect;
-  }, [onSelect, onCellSelect]);
+    insetsRef.current = insets;
+  }, [onSelect, onCellSelect, insets]);
+
+  /** パネルに隠れる分を除いて、bounds が収まるように合わせる */
+  const fitVisible = useCallback((b: Leaflet.LatLngBounds, pad: number, maxZoom?: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const i = insetsRef.current;
+    map.fitBounds(b, { paddingTopLeft: [i.left + pad, i.top + pad], paddingBottomRight: [i.right + pad, i.bottom + pad], maxZoom });
+  }, []);
+
+  /** パネルに隠れる分を除いた部分の真ん中へ飛ぶ */
+  const flyVisible = useCallback((lat: number, lng: number, zoom: number) => {
+    const map = mapRef.current;
+    const L = LRef.current;
+    if (!map || !L) return;
+    const i = insetsRef.current;
+    const p = map.project([lat, lng], zoom).subtract(L.point((i.left - i.right) / 2, (i.top - i.bottom) / 2));
+    map.flyTo(map.unproject(p, zoom), zoom, { duration: 0.6 });
+  }, []);
+
+  const fitCircle = useCallback(() => {
+    if (circleRef.current) fitVisible(circleRef.current.getBounds(), 12);
+  }, [fitVisible]);
 
   // 地図の初期化（1回だけ）
   useEffect(() => {
@@ -132,7 +172,6 @@ export function OfficeMap({
         attributionControl: false,
         zoomSnap: 0.5,
       });
-      L.control.zoom({ position: "topright", zoomInTitle: "拡大", zoomOutTitle: "縮小" }).addTo(map);
       L.control.attribution({ position: "bottomright", prefix: false }).addTo(map);
       // マスの色分けは事業所の点より下に描く（専用の層）
       map.createPane("cells").style.zIndex = "350";
@@ -147,6 +186,7 @@ export function OfficeMap({
         dashArray: "5 6",
         fill: false,
         interactive: false,
+        className: "radius-ring",
       }).addTo(map);
       landmarkLayerRef.current = L.layerGroup().addTo(map);
       officeLayerRef.current = L.layerGroup().addTo(map);
@@ -159,9 +199,9 @@ export function OfficeMap({
       map.on("zoomend", () => setZoom(map.getZoom()));
       // マスは点の下の別の層にあって直接は押せないので、地図を押した位置からマスの番号を出す
       map.on("click", (e: Leaflet.LeafletMouseEvent) => onCellSelectRef.current?.(meshCodeAt(e.latlng.lat, e.latlng.lng)));
-      map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12] });
-      setZoom(map.getZoom());
       mapRef.current = map;
+      fitCircle();
+      setZoom(map.getZoom());
       setReady(true);
     });
     return () => {
@@ -244,9 +284,8 @@ export function OfficeMap({
 
   // 範囲全体に合わせる
   useEffect(() => {
-    if (!ready || !circleRef.current || !mapRef.current) return;
-    mapRef.current.fitBounds(circleRef.current.getBounds(), { padding: [12, 12] });
-  }, [ready, fitToken]);
+    if (ready) fitCircle();
+  }, [ready, fitToken, fitCircle]);
 
   // 指定の点が全部入るように合わせる
   useEffect(() => {
@@ -254,17 +293,17 @@ export function OfficeMap({
     const map = mapRef.current;
     if (!ready || !L || !map || !fitPoints || !fitPoints.points.length) return;
     const b = L.latLngBounds(fitPoints.points.map((p) => [p.lat, p.lng] as [number, number]));
-    map.fitBounds(b.extend([center.lat, center.lng]), { padding: [28, 28], maxZoom: 15 });
+    fitVisible(b.extend([center.lat, center.lng]), 28, 15);
     // 中心は合わせ直しのときだけ使う
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, fitPoints]);
+  }, [ready, fitPoints, fitVisible]);
 
   // 選んだ事業所へ寄る
   useEffect(() => {
     if (!ready || !focus || !mapRef.current) return;
     const map = mapRef.current;
-    map.flyTo([focus.lat, focus.lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
-  }, [ready, focus]);
+    flyVisible(focus.lat, focus.lng, Math.max(map.getZoom(), 15));
+  }, [ready, focus, flyVisible]);
 
   // マスの色分け
   useEffect(() => {
@@ -297,8 +336,9 @@ export function OfficeMap({
     const b = meshBounds(focusCell.code);
     const bounds = L.latLngBounds([b.south, b.west], [b.north, b.east]);
     focusCellRef.current = L.rectangle(bounds, { color: "#15211e", weight: 2.5, fill: false, interactive: false }).addTo(map);
-    map.flyTo(bounds.getCenter(), Math.max(map.getZoom(), 14), { duration: 0.6 });
-  }, [ready, focusCell]);
+    const c = bounds.getCenter();
+    flyVisible(c.lat, c.lng, Math.max(map.getZoom(), 14));
+  }, [ready, focusCell, flyVisible]);
 
   // 事業所の点
   useEffect(() => {
@@ -341,8 +381,17 @@ export function OfficeMap({
     if (selected) {
       L.circleMarker([selected.lat, selected.lng], {
         renderer,
-        radius: r * ((selected as MapPoint).scale ?? 1) + 6,
-        weight: 3,
+        radius: r * ((selected as MapPoint).scale ?? 1) + 8,
+        weight: 5,
+        fill: false,
+        color: "#2a9d8f",
+        opacity: 0.35,
+        interactive: false,
+      }).addTo(layer);
+      L.circleMarker([selected.lat, selected.lng], {
+        renderer,
+        radius: r * ((selected as MapPoint).scale ?? 1) + 4,
+        weight: 2.5,
         fill: false,
         color: "#1d5d66",
         interactive: false,
@@ -351,21 +400,48 @@ export function OfficeMap({
   }, [ready, points, selectedId, zoom]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-xl border border-rule">
+    <div className={`relative isolate h-full w-full overflow-hidden ${className}`}>
       <div ref={boxRef} className="absolute inset-0" aria-label="事業所の地図" />
-      <div className="absolute left-2 top-2 z-[800] flex overflow-hidden rounded-full border border-rule bg-white text-xs font-bold shadow-sm">
+      {/* スマホ：左上に地図の切り替え・右上に拡大縮小・左下に範囲全体。PC：右下にまとめる（左と上はパネルが重なるため） */}
+      <div className="glass absolute left-3 top-3 z-[800] flex rounded-full p-0.5 text-xs font-bold lg:bottom-[10.25rem] lg:left-auto lg:right-4 lg:top-auto">
         {(Object.keys(TILES) as TileStyle[]).map((k) => (
           <button
             key={k}
             type="button"
             onClick={() => setTileStyle(k)}
             aria-pressed={tileStyle === k}
-            className={`px-3 py-1 ${tileStyle === k ? "bg-accent text-white" : "text-ink"}`}
+            className={`rounded-full px-3 py-1 transition-colors ${tileStyle === k ? "bg-grad" : "text-ink hover:bg-white/70"}`}
           >
             {TILES[k].label}
           </button>
         ))}
       </div>
+      <div className="glass absolute right-3 top-3 z-[800] flex flex-col overflow-hidden rounded-xl lg:bottom-9 lg:right-4 lg:top-auto">
+        <button type="button" title="拡大" aria-label="拡大" onClick={() => mapRef.current?.zoomIn()} className={CTRL}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <span className="mx-2 h-px bg-ink/10" aria-hidden="true" />
+        <button type="button" title="縮小" aria-label="縮小" onClick={() => mapRef.current?.zoomOut()} className={CTRL}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+      </div>
+      {ready && (
+        <button
+          type="button"
+          onClick={fitCircle}
+          className="glass absolute bottom-3 left-3 z-[800] flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:bg-white! lg:bottom-[7.25rem] lg:left-auto lg:right-4"
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
+            <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+          </svg>
+          範囲全体を見る
+        </button>
+      )}
     </div>
   );
 }

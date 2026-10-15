@@ -11,7 +11,9 @@
  *  - 体制比較　　　：公表ページ（事業所の詳細）の職員・利用者・加算を、範囲内の同じサービスで比べる
  *  需要と競合には「営業先のおすすめ」（足りない場所の居宅介護支援・相談支援）も出す
  *
- * スマホ：上に操作、その下に地図、残りが一覧などの中身。PC（幅1024px〜）：左に中身、右に地図。
+ * スマホ：上に操作、その下に地図、残りが一覧などの中身。
+ * PC（幅1024px〜）：地図を画面いっぱいに敷き、左にすりガラスのパネル（見出し・タブ・検索・中身）、
+ * 上に絞り込みの札を浮かせる。地図にはパネルに隠れる分（insets）を渡し、見えている部分に寄せさせる。
  *
  * データ（どれも GitHub Actions が作って public/data/ に置く）
  *  - offices.json … 今の事業所（scripts/update-data.ts）
@@ -21,7 +23,7 @@
  */
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ALERT_CATEGORIES, ALERT_RADIUS_KM, DEFAULT_RADIUS, GAP_RADIUS_KM, MAX_KM, RADII } from "@/config";
 import {
   computeGap,
@@ -52,7 +54,7 @@ import {
 } from "@/lib/details";
 import { searchKey } from "@/lib/search-text";
 import { GapPanel, type ColorMode } from "./GapPanel";
-import type { CellOverlay, MapPoint } from "./OfficeMap";
+import type { CellOverlay, MapInsets, MapPoint } from "./OfficeMap";
 import { AboutData, OfficeRow, type RankFor, type Row } from "./OfficeList";
 import { ComparePanel, type CompareItem } from "./ComparePanel";
 import { CorpPanel } from "./CorpPanel";
@@ -63,7 +65,7 @@ import { Note, PickChips } from "./ui";
 
 const OfficeMap = dynamic(() => import("./OfficeMap").then((m) => m.OfficeMap), {
   ssr: false,
-  loading: () => <div className="h-full w-full rounded-xl border border-rule bg-[#e9ece6]" />,
+  loading: () => <div className="shimmer h-full w-full rounded-[1.25rem] lg:rounded-none" />,
 });
 
 const PAGE = 150;
@@ -93,6 +95,40 @@ const PERIODS = [
 
 const GAP_CATEGORIES = CATEGORIES.filter((c) => c.id !== "ot");
 
+const NO_INSETS: MapInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+/** 地図の外枠（スマホでは角を丸めて浮かせる。PCでは画面いっぱい） */
+const MAP_FRAME = "rounded-[1.25rem] border border-white/80 shadow-[var(--shadow-float)] lg:rounded-none lg:border-0 lg:shadow-none";
+
+/**
+ * PC で地図に重なっているパネルの分を測る（スマホでは重ならないので 0）
+ */
+function useMapInsets() {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [insets, setInsets] = useState<MapInsets>(NO_INSETS);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const measure = () => {
+      const p = panelRef.current?.getBoundingClientRect();
+      const b = barRef.current?.getBoundingClientRect();
+      const next = mq.matches && p && b ? { top: Math.round(b.bottom), right: 0, bottom: 0, left: Math.round(p.right) } : NO_INSETS;
+      setInsets((cur) => (cur.top === next.top && cur.left === next.left ? cur : next));
+    };
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (panelRef.current) ro?.observe(panelRef.current);
+    if (barRef.current) ro?.observe(barRef.current);
+    mq.addEventListener("change", measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      mq.removeEventListener("change", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  return { panelRef, barRef, insets };
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -105,6 +141,7 @@ export function OfficeMapApp() {
   const [mode, setMode] = useState<Mode>("list");
   /** 「さがす」以外のタブで、スマホでは検索窓を畳んでおき、虫めがねを押したときだけ出す */
   const [searchOpen, setSearchOpen] = useState(false);
+  const { panelRef, barRef, insets } = useMapInsets();
 
   // 事業所をさがす
   const [query, setQuery] = useState("");
@@ -585,16 +622,10 @@ export function OfficeMapApp() {
             : `自社から${radius}km以内の${compInfo.name}の職員・利用者・加算`;
 
   const radiusChips = (
-    <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="自社からの距離">
+    <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5 lg:overflow-visible lg:pb-0" role="group" aria-label="自社からの距離">
       <span className="shrink-0 pr-0.5 text-xs text-muted">距離</span>
       {RADII.map((r) => (
-        <button
-          key={r}
-          type="button"
-          aria-pressed={radius === r}
-          onClick={() => changeRadius(r)}
-          className={`shrink-0 rounded-full border px-3 py-1 text-[13px] tabular-nums ${radius === r ? "border-accent bg-accent text-white" : "border-rule bg-white"}`}
-        >
+        <button key={r} type="button" aria-pressed={radius === r} onClick={() => changeRadius(r)} className={`chip ${radius === r ? "chip-on" : ""}`}>
           {r}km
         </button>
       ))}
@@ -602,7 +633,7 @@ export function OfficeMapApp() {
   );
 
   const categoryChips = (withCounts: boolean) => (
-    <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="サービスの種類">
+    <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5 lg:flex-wrap lg:overflow-visible lg:pb-0" role="group" aria-label="サービスの種類">
       {CATEGORIES.filter((c) => c.id !== "ot" || counts.ot > 0).map((c) => {
         const on = cats[c.id];
         return (
@@ -614,71 +645,99 @@ export function OfficeMapApp() {
               setCats((s) => ({ ...s, [c.id]: !s[c.id] }));
               setShown(PAGE);
             }}
-            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-rule bg-white px-3 py-1 text-[13px] ${on ? "" : "opacity-55"}`}
+            className={`chip ${on ? "" : "opacity-50 shadow-none"}`}
+            style={on ? { borderColor: `${c.color}55`, background: `linear-gradient(135deg, ${c.color}1f, #ffffffd9)` } : undefined}
           >
-            <span className="h-2.5 w-2.5 rounded-full" style={on ? { background: c.color } : { boxShadow: `inset 0 0 0 2px ${c.color}` }} />
+            <span
+              className="h-2.5 w-2.5 rounded-full transition-shadow"
+              style={on ? { background: c.color, boxShadow: `0 0 0 3px ${c.color}2e, 0 0 10px ${c.color}99` } : { boxShadow: `inset 0 0 0 2px ${c.color}` }}
+            />
             {c.name}
-            {withCounts && <span className="text-[11px] tabular-nums text-muted">{counts[c.id]}</span>}
+            {withCounts && <span className="text-[11px] font-bold tabular-nums" style={{ color: on ? c.color : undefined }}>{counts[c.id]}</span>}
           </button>
         );
       })}
     </div>
   );
 
+  const searchIcon = (
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+  const modeIndex = Math.max(0, MODES.findIndex((m) => m.id === mode));
+
   return (
-    <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-2.5 px-4 pt-2.5 lg:pt-4">
-      <header className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-bold tracking-wide">花見川 事業所マップ</h1>
-          <p className="truncate text-xs text-muted">{subline}</p>
-        </div>
-        {mode === "list" ? (
-          <a href="#about-data" className="shrink-0 rounded-full border border-rule bg-white px-3 py-1.5 text-xs font-bold text-ink">
-            データについて
-          </a>
-        ) : (
-          <button
-            type="button"
-            aria-expanded={searchOpen}
-            onClick={() => setSearchOpen((v) => !v)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold lg:hidden ${searchOpen ? "border-ink bg-ink text-white" : "border-rule bg-white text-ink"}`}
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            事業所を探す
-          </button>
-        )}
-      </header>
+    <div className="relative h-full">
+      {/* スマホで地図の外に見える背景（PCでは地図が全面に敷かれるので出さない） */}
+      <div className="aurora lg:hidden" aria-hidden="true" />
+      <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-2.5 px-4 pt-2.5 lg:max-w-none lg:p-0">
+        {/* スマホでは箱を作らず中身を縦に並べる（地図を間に挟むため）。PCでは左に浮かぶパネル */}
+        <div
+          ref={panelRef}
+          className="contents lg:glass lg:absolute lg:bottom-4 lg:left-4 lg:top-4 lg:z-20 lg:flex lg:w-[440px] lg:flex-col lg:gap-3 lg:rounded-[1.75rem] lg:px-4 lg:pt-4"
+        >
+          <header className="order-1 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-[0.85rem] text-white lg:h-10 lg:w-10 lg:rounded-[0.9rem]" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
+                  <circle cx="12" cy="10" r="2.4" fill="currentColor" stroke="none" />
+                </svg>
+              </span>
+              <div className="min-w-0">
+                <p className="text-[9.5px] font-bold uppercase leading-none tracking-[0.28em] text-accent-2">Hanamigawa Care Map</p>
+                <h1 className="mt-0.5 text-[17px] font-extrabold leading-tight tracking-wide">花見川 事業所マップ</h1>
+                <p className="truncate text-[11px] text-muted">{subline}</p>
+              </div>
+            </div>
+            {mode === "list" ? (
+              <a href="#about-data" className="chip shrink-0 py-1.5 text-xs font-bold text-ink">
+                データについて
+              </a>
+            ) : (
+              <button
+                type="button"
+                aria-expanded={searchOpen}
+                onClick={() => setSearchOpen((v) => !v)}
+                className={`chip shrink-0 py-1.5 text-xs font-bold lg:hidden ${searchOpen ? "chip-on" : "text-ink"}`}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+                事業所を探す
+              </button>
+            )}
+          </header>
 
-      <nav className="grid grid-cols-5 rounded-lg border border-rule bg-white p-0.5 text-[13px] font-bold leading-tight lg:max-w-2xl" aria-label="見方">
-        {MODES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            aria-pressed={mode === m.id}
-            onClick={() => changeMode(m.id)}
-            className={`break-keep rounded-md px-1 py-1.5 ${mode === m.id ? "bg-ink text-white" : "text-ink"}`}
+          <nav
+            className="glass relative order-2 grid grid-cols-5 rounded-[0.9rem] p-[3px] text-[13px] font-bold leading-tight shadow-[var(--shadow-card)]"
+            aria-label="見方"
           >
-            {/* どのタブも同じ高さの2行に揃える */}
-            <span className="flex min-h-[2.5em] flex-col items-center justify-center lg:min-h-0 lg:flex-row">
-              {m.label.split("|").map((part) => (
-                <span key={part}>{part}</span>
-              ))}
-            </span>
-          </button>
-        ))}
-      </nav>
+            <span className="tab-pill" aria-hidden="true" style={{ "--tab": modeIndex, "--tabs": MODES.length } as React.CSSProperties} />
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                aria-pressed={mode === m.id}
+                onClick={() => changeMode(m.id)}
+                className={`relative z-10 break-keep rounded-[0.65rem] px-1 py-1.5 transition-colors duration-300 ${mode === m.id ? "text-white" : "text-ink/75 hover:text-ink"}`}
+              >
+                {/* どのタブも同じ高さの2行に揃える */}
+                <span className="flex min-h-[2.5em] flex-col items-center justify-center lg:min-h-0 lg:flex-row">
+                  {m.label.split("|").map((part) => (
+                    <span key={part}>{part}</span>
+                  ))}
+                </span>
+              </button>
+            ))}
+          </nav>
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
-        {mode === "list" && (
-          <>
-            <label className="flex items-center gap-2 rounded-lg border border-rule bg-white px-3 lg:w-[400px] lg:flex-none">
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
+          {mode === "list" ? (
+            <label className="field order-3 flex items-center gap-2 px-3">
+              {searchIcon}
               <input
                 type="search"
                 autoComplete="off"
@@ -690,120 +749,312 @@ export function OfficeMapApp() {
                 }}
                 placeholder="事業所名・法人名・住所・電話番号"
                 aria-label="事業所を検索"
-                className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none"
+                className="has-custom-clear min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none placeholder:text-muted/70"
               />
               {query && (
-                <button type="button" onClick={() => setQuery("")} className="shrink-0 text-sm text-muted" aria-label="検索語を消す">
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink/8 text-sm text-muted hover:bg-ink/15"
+                  aria-label="検索語を消す"
+                >
                   ×
                 </button>
               )}
             </label>
-            {categoryChips(true)}
-            {radiusChips}
-          </>
-        )}
-        {mode !== "list" && (
-          <div className={`${searchOpen ? "" : "hidden"} lg:block lg:w-[400px] lg:flex-none`}>
-            <SearchJump rows={rows} onPick={openOffice} autoFocus={searchOpen} />
-          </div>
-        )}
-        {mode === "gap" && (
-          <>
-            <PickChips
-              label="比べる"
-              options={GAP_CATEGORIES.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
-              value={gapCat}
-              onChange={(v) => {
-                setGapCat(v);
-                setSalesSel([]);
-                setSalesHi(null);
-                // 障害のサービスは高齢者ではなく総人口で見るのが自然なので、切り替えたときに寄せる
-                if ((v === "dv" || v === "cs") && base !== "pop") setBase("pop");
-                if (v !== "dv" && v !== "cs" && base === "pop") setBase("p75");
-              }}
-            />
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <PickChips
-                label="人数"
-                options={(["p75", "p65", "pop"] as DemandBase[]).map((b) => ({ value: b, label: DEMAND_LABEL[b] }))}
-                value={base}
-                onChange={setBase}
-              />
-              <PickChips
-                label="色"
-                options={[
-                  { value: "short" as ColorMode, label: "足りなさ" },
-                  { value: "count" as ColorMode, label: "人数" },
-                ]}
-                value={colorMode}
-                onChange={setColorMode}
-              />
+          ) : (
+            <div className={`order-3 ${searchOpen ? "" : "hidden"} lg:block`}>
+              <SearchJump rows={rows} onPick={openOffice} autoFocus={searchOpen} />
             </div>
-            {radiusChips}
-          </>
-        )}
-        {mode === "trend" && (
-          <>
-            {categoryChips(false)}
-            <PickChips label="期間" options={PERIODS} value={months} onChange={setMonths} />
-            {radiusChips}
-          </>
-        )}
-        {mode === "compete" && (
-          <>
-            <PickChips
-              label="比べる"
-              options={COMPARE_CATS.map((c) => ({ value: c.id, label: c.name, color: categoryColor(c.id) }))}
-              value={compCat}
-              onChange={(v) => {
-                setCompCat(v);
-                setSelectedComp(null);
-                const code = COMPARE_CATS.find((c) => c.id === v)?.code ?? "110";
-                if (!metricsFor(code).includes(metric)) setMetric("users");
-              }}
-            />
-            <PickChips
-              label="並べ替え"
-              options={metricsFor(compInfo.code).map((m) => ({ value: m, label: METRIC_LABEL[m].replace("（前年同月比）", "") }))}
-              value={metric}
-              onChange={setMetric}
-            />
-            {radiusChips}
-          </>
-        )}
-        {mode === "corp" && (
-          <>
-            {categoryChips(false)}
-            <PickChips
-              label="法人"
-              options={[
-                { value: "all", label: "すべて" },
-                { value: "both", label: "介護＋障害の両方をしている法人" },
-              ]}
-              value={bothOnly ? "both" : "all"}
-              onChange={(v) => setBothOnly(v === "both")}
-            />
-            {radiusChips}
-          </>
-        )}
-      </div>
+          )}
 
-      {mode === "list" && alerts.length > 0 && (
-        <button
-          type="button"
-          onClick={showAlerts}
-          className="flex items-center justify-between gap-2 rounded-lg border border-ink bg-white px-3 py-2 text-left text-[13px]"
+          {mode === "list" && alerts.length > 0 && (
+            <button
+              type="button"
+              onClick={showAlerts}
+              className="card card-hover card-hero order-5 flex items-center justify-between gap-2 px-3 py-2.5 text-left text-[13px]"
+            >
+              <span className="flex min-w-0 items-start gap-2">
+                <span className="relative mt-1.5 flex h-2 w-2 shrink-0" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#d4531a] opacity-60 motion-reduce:animate-none" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#d4531a]" />
+                </span>
+                <span className="min-w-0">
+                  <b>{ALERT_RADIUS_KM}km以内に新しい訪問介護・障害の訪問系が{alerts.length}件</b>
+                  <span className="text-muted">（{ymLabel(alerts[0].to)}までの半年の公表）</span>
+                </span>
+              </span>
+              <span className="bg-grad shrink-0 rounded-full px-2.5 py-1 text-xs font-bold">見る</span>
+            </button>
+          )}
+
+          <section
+            className="thin-scroll order-7 min-h-0 flex-1 overflow-y-auto pb-4 lg:-mx-4 lg:px-4"
+            aria-label={modeName(mode)}
+          >
+            {mode === "gap" && (
+              <GapPanel
+                gap={gap}
+                error={areasError}
+                category={gapCat}
+                base={base}
+                colorMode={colorMode}
+                radiusKm={radius}
+                ranking={ranking}
+                selfCell={selfCell}
+                selectedCell={selectedCellObj}
+                breaks={breaks}
+                onPickCell={(code) => pickCell(code, true)}
+                extra={
+                  salesCat && center ? (
+                    <SalesPanel
+                      items={salesItems}
+                      cat={gapCat}
+                      catName={gapCatName}
+                      targetName={CATEGORIES.find((c) => c.id === salesCat)?.name ?? ""}
+                      radiusKm={radius}
+                      sort={salesSort}
+                      onSort={setSalesSort}
+                      selected={salesSel}
+                      onToggle={(id) => setSalesSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
+                      onClear={() => setSalesSel([])}
+                      highlightId={salesHi}
+                      center={center}
+                      onFocus={(id) => {
+                        setSalesHi(id);
+                        const o = data?.offices.find((x) => x.id === id);
+                        if (o?.lat != null && o.lng != null) {
+                          setFocus({ lat: o.lat, lng: o.lng, token: Date.now() });
+                          pickCell(meshCodeAt(o.lat, o.lng), false);
+                        }
+                      }}
+                      onOpenOffice={openOffice}
+                    />
+                  ) : null
+                }
+              />
+            )}
+
+            {mode === "compete" && (
+              <ComparePanel
+                details={details}
+                error={detailsError}
+                cat={compCat}
+                radiusKm={radius}
+                metric={metric}
+                items={compItems}
+                includeStale={includeStale}
+                onIncludeStale={setIncludeStale}
+                selectedId={selectedComp}
+                onSelect={(id) => {
+                  setSelectedComp((cur) => (cur === id ? null : id));
+                  const o = data?.offices.find((x) => x.id === id);
+                  if (o?.lat != null && o.lng != null) setFocus({ lat: o.lat, lng: o.lng, token: Date.now() });
+                }}
+                onOpenOffice={openOffice}
+                forms={data?.kaigoDetailForms}
+                now={now}
+              />
+            )}
+
+            {mode === "corp" && (
+              <CorpPanel
+                land={land}
+                radiusKm={radius}
+                selected={selectedCorpObj}
+                onSelectCorp={(k) => chooseCorp(k, true)}
+                onOpenOffice={openOffice}
+              />
+            )}
+
+            {mode === "trend" && (
+              <TrendPanel
+                history={history}
+                error={historyError}
+                center={center}
+                radiusKm={radius}
+                cats={cats}
+                months={months}
+                changes={changes}
+                selectedKey={selectedChange}
+                onSelect={(key) => {
+                  setSelectedChange((cur) => (cur === key ? null : key));
+                  const c = changes.find((x) => x.key === key);
+                  if (c?.lat != null && c.lng != null) setFocus({ lat: c.lat, lng: c.lng, token: Date.now() });
+                }}
+                hasCurrent={(c) => !!officeOfChange(c)}
+                onOpenOffice={openOfficeFromChange}
+              />
+            )}
+
+            {mode === "list" && (
+              <>
+                <div className="sticky top-0 z-10 -mx-1 mb-1 flex items-baseline justify-between rounded-b-xl bg-paper/80 px-1.5 pb-1.5 pt-0.5 text-xs text-muted backdrop-blur-md lg:bg-white/55">
+                  <span>
+                    <b className="text-grad text-[20px] font-extrabold tabular-nums">{visible.length.toLocaleString("ja-JP")}</b> 件
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                      <path d="M4 6h16M7 12h10M10 18h4" />
+                    </svg>
+                    自社から近い順
+                  </span>
+                </div>
+
+                {!data && !loadError && (
+                  <div className="grid gap-1.5" role="status" aria-label="事業所データを読み込んでいます">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <div key={i} className="shimmer h-[78px] rounded-2xl" />
+                    ))}
+                  </div>
+                )}
+                {loadError && <Note title="事業所データを読み込めませんでした">通信状態を確認して、開き直してください。（{loadError}）</Note>}
+                {data && !hasData && (
+                  <Note title="事業所データはまだ入っていません">
+                    GitHub の Actions にある「事業所データの更新」を実行すると、厚生労働省と WAM NET の公表データを取り込んでここに並びます。
+                  </Note>
+                )}
+                {hasData && visible.length === 0 && (
+                  <Note title="条件に合う事業所がありません">距離を広げるか、サービスの絞り込みや検索語を見直してください。</Note>
+                )}
+
+                <ol className="rise-stagger flex flex-col gap-2">
+                  {visible.slice(0, shown).map((o) => (
+                    <OfficeRow
+                      key={o.id}
+                      office={o}
+                      open={o.id === selectedId}
+                      sameSpot={o.id === selectedId ? sameSpot : 0}
+                      center={center}
+                      forms={data?.kaigoDetailForms}
+                      details={details}
+                      rankFor={rankFor}
+                      now={now}
+                      onToggle={() => select(o.id)}
+                    />
+                  ))}
+                </ol>
+                {visible.length > shown && (
+                  <button
+                    type="button"
+                    onClick={() => setShown((s) => s + PAGE)}
+                    className="mt-2 w-full rounded-2xl border border-dashed border-accent/30 bg-white/40 py-2.5 text-sm font-bold text-accent transition-colors hover:bg-white/80"
+                  >
+                    さらに表示（残り {(visible.length - shown).toLocaleString("ja-JP")} 件）
+                  </button>
+                )}
+
+                {data && (
+                  <AboutData
+                    data={data}
+                    extra={
+                      <p className="text-[11px] leading-relaxed text-muted">
+                        「需要と競合」の人口：総務省統計局「令和2年国勢調査」250mメッシュ・小地域境界（e-Stat）を加工。
+                        「競合の動き」：厚生労働省（2021年6月末〜）・WAM NET（2021年11月末〜）の過去の公表データを加工。
+                        「体制比較」と詳細の「体制」：介護サービス情報公表システム（厚生労働省）の各事業所の公表ページ（基本情報）を年2回取得して読み取り・加工
+                        {details ? `（${details.generatedAt.slice(0, 10).replaceAll("-", "/")} 作成、${Object.keys(details.details).length}ページ分）` : ""}。
+                      </p>
+                    }
+                  />
+                )}
+              </>
+            )}
+          </section>
+        </div>
+
+        {/* 絞り込み。スマホでは検索窓の下、PCでは地図の上に浮かぶ */}
+        <div
+          ref={barRef}
+          className="order-4 flex flex-col gap-2 lg:glass lg:absolute lg:left-[472px] lg:top-4 lg:max-w-[calc(100%-488px)] lg:z-10 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-5 lg:gap-y-2 lg:rounded-2xl lg:px-4 lg:py-2.5"
         >
-          <span className="min-w-0">
-            <b>{ALERT_RADIUS_KM}km以内に新しい訪問介護・障害の訪問系が{alerts.length}件</b>
-            <span className="text-muted">（{ymLabel(alerts[0].to)}までの半年の公表）</span>
-          </span>
-          <span className="shrink-0 text-xs font-bold text-accent">見る</span>
-        </button>
-      )}
+          {mode === "list" && (
+            <>
+              {categoryChips(true)}
+              {radiusChips}
+            </>
+          )}
+          {mode === "gap" && (
+            <>
+              <PickChips
+                label="比べる"
+                options={GAP_CATEGORIES.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
+                value={gapCat}
+                onChange={(v) => {
+                  setGapCat(v);
+                  setSalesSel([]);
+                  setSalesHi(null);
+                  // 障害のサービスは高齢者ではなく総人口で見るのが自然なので、切り替えたときに寄せる
+                  if ((v === "dv" || v === "cs") && base !== "pop") setBase("pop");
+                  if (v !== "dv" && v !== "cs" && base === "pop") setBase("p75");
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:gap-x-5">
+                <PickChips
+                  label="人数"
+                  options={(["p75", "p65", "pop"] as DemandBase[]).map((b) => ({ value: b, label: DEMAND_LABEL[b] }))}
+                  value={base}
+                  onChange={setBase}
+                />
+                <PickChips
+                  label="色"
+                  options={[
+                    { value: "short" as ColorMode, label: "足りなさ" },
+                    { value: "count" as ColorMode, label: "人数" },
+                  ]}
+                  value={colorMode}
+                  onChange={setColorMode}
+                />
+              </div>
+              {radiusChips}
+            </>
+          )}
+          {mode === "trend" && (
+            <>
+              {categoryChips(false)}
+              <PickChips label="期間" options={PERIODS} value={months} onChange={setMonths} />
+              {radiusChips}
+            </>
+          )}
+          {mode === "compete" && (
+            <>
+              <PickChips
+                label="比べる"
+                options={COMPARE_CATS.map((c) => ({ value: c.id, label: c.name, color: categoryColor(c.id) }))}
+                value={compCat}
+                onChange={(v) => {
+                  setCompCat(v);
+                  setSelectedComp(null);
+                  const code = COMPARE_CATS.find((c) => c.id === v)?.code ?? "110";
+                  if (!metricsFor(code).includes(metric)) setMetric("users");
+                }}
+              />
+              <PickChips
+                label="並べ替え"
+                options={metricsFor(compInfo.code).map((m) => ({ value: m, label: METRIC_LABEL[m].replace("（前年同月比）", "") }))}
+                value={metric}
+                onChange={setMetric}
+              />
+              {radiusChips}
+            </>
+          )}
+          {mode === "corp" && (
+            <>
+              {categoryChips(false)}
+              <PickChips
+                label="法人"
+                options={[
+                  { value: "all", label: "すべて" },
+                  { value: "both", label: "介護＋障害の両方をしている法人" },
+                ]}
+                value={bothOnly ? "both" : "all"}
+                onChange={(v) => setBothOnly(v === "both")}
+              />
+              {radiusChips}
+            </>
+          )}
+        </div>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-2.5 lg:flex-row">
-        <div className="relative h-[42%] min-h-56 shrink-0 lg:order-2 lg:h-auto lg:flex-1">
+        <div className="relative order-6 h-[42%] min-h-56 shrink-0 lg:absolute lg:inset-0 lg:z-0 lg:h-auto">
           {center ? (
             <OfficeMap
               center={center}
@@ -819,180 +1070,14 @@ export function OfficeMapApp() {
               fitToken={fitToken}
               focus={focus}
               fitPoints={fitPoints}
+              insets={insets}
+              className={MAP_FRAME}
             />
           ) : (
-            <div className="h-full w-full rounded-xl border border-rule bg-[#e9ece6]" />
-          )}
-          {center && (
-            <button
-              type="button"
-              onClick={() => setFitToken((t) => t + 1)}
-              className="absolute bottom-2 left-2 z-[800] rounded-full border border-rule bg-white px-3 py-1 text-xs font-bold shadow-sm"
-            >
-              範囲全体を見る
-            </button>
+            <div className={`shimmer h-full w-full ${MAP_FRAME}`} />
           )}
         </div>
-
-        <section className="min-h-0 flex-1 overflow-y-auto pb-4 lg:order-1 lg:w-[400px] lg:flex-none" aria-label={modeName(mode)}>
-          {mode === "gap" && (
-            <GapPanel
-              gap={gap}
-              error={areasError}
-              category={gapCat}
-              base={base}
-              colorMode={colorMode}
-              radiusKm={radius}
-              ranking={ranking}
-              selfCell={selfCell}
-              selectedCell={selectedCellObj}
-              breaks={breaks}
-              onPickCell={(code) => pickCell(code, true)}
-              extra={
-                salesCat && center ? (
-                  <SalesPanel
-                    items={salesItems}
-                    cat={gapCat}
-                    catName={gapCatName}
-                    targetName={CATEGORIES.find((c) => c.id === salesCat)?.name ?? ""}
-                    radiusKm={radius}
-                    sort={salesSort}
-                    onSort={setSalesSort}
-                    selected={salesSel}
-                    onToggle={(id) => setSalesSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
-                    onClear={() => setSalesSel([])}
-                    highlightId={salesHi}
-                    center={center}
-                    onFocus={(id) => {
-                      setSalesHi(id);
-                      const o = data?.offices.find((x) => x.id === id);
-                      if (o?.lat != null && o.lng != null) {
-                        setFocus({ lat: o.lat, lng: o.lng, token: Date.now() });
-                        pickCell(meshCodeAt(o.lat, o.lng), false);
-                      }
-                    }}
-                    onOpenOffice={openOffice}
-                  />
-                ) : null
-              }
-            />
-          )}
-
-          {mode === "compete" && (
-            <ComparePanel
-              details={details}
-              error={detailsError}
-              cat={compCat}
-              radiusKm={radius}
-              metric={metric}
-              items={compItems}
-              includeStale={includeStale}
-              onIncludeStale={setIncludeStale}
-              selectedId={selectedComp}
-              onSelect={(id) => {
-                setSelectedComp((cur) => (cur === id ? null : id));
-                const o = data?.offices.find((x) => x.id === id);
-                if (o?.lat != null && o.lng != null) setFocus({ lat: o.lat, lng: o.lng, token: Date.now() });
-              }}
-              onOpenOffice={openOffice}
-              forms={data?.kaigoDetailForms}
-              now={now}
-            />
-          )}
-
-          {mode === "corp" && (
-            <CorpPanel
-              land={land}
-              radiusKm={radius}
-              selected={selectedCorpObj}
-              onSelectCorp={(k) => chooseCorp(k, true)}
-              onOpenOffice={openOffice}
-            />
-          )}
-
-          {mode === "trend" && (
-            <TrendPanel
-              history={history}
-              error={historyError}
-              center={center}
-              radiusKm={radius}
-              cats={cats}
-              months={months}
-              changes={changes}
-              selectedKey={selectedChange}
-              onSelect={(key) => {
-                setSelectedChange((cur) => (cur === key ? null : key));
-                const c = changes.find((x) => x.key === key);
-                if (c?.lat != null && c.lng != null) setFocus({ lat: c.lat, lng: c.lng, token: Date.now() });
-              }}
-              hasCurrent={(c) => !!officeOfChange(c)}
-              onOpenOffice={openOfficeFromChange}
-            />
-          )}
-
-          {mode === "list" && (
-            <>
-              <div className="sticky top-0 z-10 flex items-baseline justify-between bg-paper px-0.5 pb-1.5 text-xs text-muted">
-                <span>
-                  <b className="text-[15px] tabular-nums text-ink">{visible.length.toLocaleString("ja-JP")}</b> 件
-                </span>
-                <span>自社から近い順</span>
-              </div>
-
-              {!data && !loadError && <Note>事業所データを読み込んでいます…</Note>}
-              {loadError && <Note title="事業所データを読み込めませんでした">通信状態を確認して、開き直してください。（{loadError}）</Note>}
-              {data && !hasData && (
-                <Note title="事業所データはまだ入っていません">
-                  GitHub の Actions にある「事業所データの更新」を実行すると、厚生労働省と WAM NET の公表データを取り込んでここに並びます。
-                </Note>
-              )}
-              {hasData && visible.length === 0 && (
-                <Note title="条件に合う事業所がありません">距離を広げるか、サービスの絞り込みや検索語を見直してください。</Note>
-              )}
-
-              <ol className="flex flex-col gap-1.5">
-                {visible.slice(0, shown).map((o) => (
-                  <OfficeRow
-                    key={o.id}
-                    office={o}
-                    open={o.id === selectedId}
-                    sameSpot={o.id === selectedId ? sameSpot : 0}
-                    center={center}
-                    forms={data?.kaigoDetailForms}
-                    details={details}
-                    rankFor={rankFor}
-                    now={now}
-                    onToggle={() => select(o.id)}
-                  />
-                ))}
-              </ol>
-              {visible.length > shown && (
-                <button
-                  type="button"
-                  onClick={() => setShown((s) => s + PAGE)}
-                  className="mt-2 w-full rounded-lg border border-dashed border-rule py-2.5 text-sm text-muted"
-                >
-                  さらに表示（残り {(visible.length - shown).toLocaleString("ja-JP")} 件）
-                </button>
-              )}
-
-              {data && (
-                <AboutData
-                  data={data}
-                  extra={
-                    <p className="text-[11px] leading-relaxed text-muted">
-                      「需要と競合」の人口：総務省統計局「令和2年国勢調査」250mメッシュ・小地域境界（e-Stat）を加工。
-                      「競合の動き」：厚生労働省（2021年6月末〜）・WAM NET（2021年11月末〜）の過去の公表データを加工。
-                      「体制比較」と詳細の「体制」：介護サービス情報公表システム（厚生労働省）の各事業所の公表ページ（基本情報）を年2回取得して読み取り・加工
-                      {details ? `（${details.generatedAt.slice(0, 10).replaceAll("-", "/")} 作成、${Object.keys(details.details).length}ページ分）` : ""}。
-                    </p>
-                  }
-                />
-              )}
-            </>
-          )}
-        </section>
-      </main>
+      </div>
     </div>
   );
 }

@@ -6,9 +6,9 @@
 
 import { useState } from "react";
 import { compareCatOf, detailOf, type DetailsData, type KaigoCode } from "@/lib/details";
-import { digitsOnly, formatDistance, kaigoPageUrl, WAM_SEARCH_URL, type Office, type OfficeData } from "@/lib/offices";
+import { categoryColor, digitsOnly, formatDistance, kaigoPageUrl, WAM_SEARCH_URL, type Office, type OfficeData } from "@/lib/offices";
 import { DetailFacts } from "./DetailFacts";
-import { ACT, ServiceChip } from "./ui";
+import { ACT, ACT_MAIN, ServiceChip } from "./ui";
 
 /** 範囲内での順位（「さがす」の詳細に出す）。体制比較と同じ数え方 */
 export type RankFor = (officeId: string, code: KaigoCode) => { scope: string; items: { label: string; rank: number; of: number }[] } | null;
@@ -39,14 +39,20 @@ export function OfficeRow({
 }) {
   const both =
     o.categories.some((c) => c === "cm" || c === "hh" || c === "vn") && o.categories.some((c) => c === "dv" || c === "cs");
+  // 左端の帯：その事業所のサービスの色を上から順に（地図の点の色と同じ）
+  const colors = [...new Set(o.categories)].map(categoryColor);
+  const stripe = colors.length > 1 ? `linear-gradient(to bottom, ${colors.join(", ")})` : (colors[0] ?? "#7a837f");
   return (
-    <li id={`row-${o.id}`} className={`rounded-lg border bg-white ${open ? "border-accent ring-1 ring-accent" : "border-rule"}`}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="grid w-full grid-cols-[1fr_auto] gap-x-2.5 gap-y-0.5 px-3 py-2.5 text-left">
+    <li id={`row-${o.id}`} className={`card card-hover rise relative overflow-hidden ${open ? "card-on" : ""}`}>
+      <span className="pointer-events-none absolute inset-y-3 left-0 w-[3px] rounded-r-full" style={{ background: stripe }} aria-hidden="true" />
+      <button type="button" onClick={onToggle} aria-expanded={open} className="grid w-full grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 py-2.5 pl-3.5 pr-3 text-left">
         <span className="min-w-0 break-words text-[15px] font-bold leading-snug">{o.name}</span>
-        <span className="self-start whitespace-nowrap text-sm tabular-nums">{o.self ? "自社" : formatDistance(o.distance)}</span>
+        <span className={`self-start whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-bold tabular-nums ${o.self ? "bg-grad" : "bg-accent/[0.08] text-accent"}`}>
+          {o.self ? "自社" : formatDistance(o.distance)}
+        </span>
         <span className="col-span-2 flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted">
-          {o.self && <span className="rounded bg-accent px-1.5 text-[11px] font-bold leading-relaxed text-white">自社</span>}
-          {both && <span className="rounded bg-[#eef2f1] px-1.5 text-[11px] font-bold leading-relaxed">介護＋障害</span>}
+          {o.self && <span className="rounded-md bg-grad px-1.5 text-[11px] font-bold leading-relaxed">自社</span>}
+          {both && <span className="rounded-md bg-linear-to-r from-[#2f56c6]/12 to-[#2c8a43]/12 px-1.5 text-[11px] font-bold leading-relaxed text-ink">介護＋障害</span>}
           {o.services.map((s) => (
             <ServiceChip key={s} service={s} />
           ))}
@@ -102,7 +108,7 @@ function OfficeDetail({
   };
   const act = ACT;
   return (
-    <div className="grid gap-2 border-t border-rule px-3 pb-3 pt-2.5 text-sm">
+    <div className="grid gap-2 border-t border-ink/[0.07] px-3 pb-3 pl-3.5 pt-2.5 text-sm">
       <dl className="grid grid-cols-[5.5em_1fr] gap-x-2.5 gap-y-0.5">
         {o.tel && <Item label="電話"><span className="select-all tabular-nums">{o.tel}</span></Item>}
         {o.fax && <Item label="FAX"><span className="select-all tabular-nums">{o.fax}</span></Item>}
@@ -114,7 +120,7 @@ function OfficeDetail({
       <div className="flex flex-wrap gap-1.5">
         {o.lat != null && o.lng != null && (
           <>
-            <a className={`${act} border-accent bg-accent text-white`} target="_blank" rel="noopener" href={`https://www.google.com/maps/search/?api=1&query=${o.lat}%2C${o.lng}`}>
+            <a className={`${act} ${ACT_MAIN}`} target="_blank" rel="noopener" href={`https://www.google.com/maps/search/?api=1&query=${o.lat}%2C${o.lng}`}>
               Googleマップ
             </a>
             {center && !o.self && (
@@ -142,14 +148,14 @@ function OfficeDetail({
         if (!hit) return null;
         const multi = (o.kaigoPages?.length ?? 0) > 1;
         return (
-          <div key={code} className="grid gap-1.5 rounded-lg border border-rule p-2.5">
+          <div key={code} className="grid gap-1.5 rounded-xl border border-ink/[0.07] bg-white/60 p-2.5">
             <p className="text-xs font-bold">体制{multi ? `（${compareCatOf(code)?.name}）` : ""}・公表ページより</p>
             <DetailFacts d={hit.d} code={code} now={now} ranks={rankFor?.(o.id, code)} />
           </div>
         );
       })}
       {((o.kaigoPages?.length ?? 0) > 0 || hasShogai) && (
-        <div className="grid gap-1.5 rounded-lg bg-[#f3f5f2] p-2.5">
+        <div className="grid gap-1.5 rounded-xl bg-[#eef4f2] p-2.5">
           <p className="text-xs text-muted">公表ページ（従業者の数・決算書類などが見られます）</p>
           <div className="flex flex-wrap gap-1.5">
             {o.kaigoPages?.map((p) => (
@@ -195,7 +201,7 @@ function fmtDate(iso?: string) {
 
 export function AboutData({ data, extra }: { data: OfficeData; extra?: React.ReactNode }) {
   return (
-    <section id="about-data" className="mt-5 grid gap-2.5 rounded-xl border border-rule bg-white p-4 text-[13px]">
+    <section id="about-data" className="card mt-5 grid gap-2.5 p-4 text-[13px]">
       <h2 className="text-sm font-bold">データについて</h2>
       <p className="text-muted">
         距離の基準：{data.center.label}。ここから {data.maxKm}km 以内の事業所を収録しています（{fmtDate(data.generatedAt)} 作成）。
@@ -212,7 +218,7 @@ export function AboutData({ data, extra }: { data: OfficeData; extra?: React.Rea
             </thead>
             <tbody>
               {data.sources.map((s) => (
-                <tr key={s.service} className="border-t border-rule align-top">
+                <tr key={s.service} className="border-t border-ink/[0.07] align-top">
                   <td className="py-1.5 pr-2"><ServiceChip service={s.service} /></td>
                   <td className="py-1.5 pr-2 text-right tabular-nums">{s.count}</td>
                   <td className="py-1.5 text-muted">
